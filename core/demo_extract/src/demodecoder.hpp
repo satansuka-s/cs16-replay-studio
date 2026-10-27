@@ -244,8 +244,13 @@ private:
 			if (br.readBit()) br.skip(16 * 8); // reserved (HLSDK resource_t, future use)
 			// sanity: recorded streams often lack a real resourcelist payload;
 			// bail out if entries look degenerate (empty names, absurd counts)
-			if (name.empty() || i > 600 || name.size() > 250 || br.bitsLeft() < 32) {
-				return; // degenerate/not a real resource list; keep previous state
+			{
+				bool nameOk = !name.empty() && name.size() <= 250;
+				for (char c : name)
+					if ((unsigned char)c > 0x7e || (unsigned char)c < 0x20) { nameOk = false; break; }
+				if (!nameOk || i > 600 || br.bitsLeft() < 32) {
+					return; // degenerate/not a real resource list; keep previous state
+				}
 			}
 			switch (type & 0xF) {
 			case 0: r.models.push_back(name); break;   // t_model
@@ -265,6 +270,33 @@ private:
 		}
 		if (!r.models.empty() || !r.sounds.empty() || !r.sprites.empty() || !r.skins.empty())
 			resources = std::move(r);
+	}
+
+	// ---- svc_customization: file metadata (name/size/type) for custom resources----
+	void parseCustomization(BitReader& br) {
+		br.skip(8);                 // playernum
+		uint32_t type = br.readUBits(8);
+		std::string name = br.readString();
+		br.skip(16);                // index
+		uint32_t size = br.readUBits(32);
+		uint32_t flags = br.readUBits(8);
+		if ((int)(flags & 0x40) != 0) br.skip(16 * 8); // RES_CUSTOM -> md5
+		// remember: best-effort, only metadata; body goes through download channels
+		{
+			bool ok = !name.empty() && name.size() <= 250;
+			for (char c : name)
+				if ((unsigned char)c > 0x7e || (unsigned char)c < 0x20) { ok = false; break; }
+			if (!ok) return;
+		}
+		ResourceInfo& r = resources;
+		switch (type & 0xF) {
+		case 0: r.models.push_back(name); break;
+		case 1: r.sounds.push_back(name); break;
+		case 2: r.skins.push_back(name); break;
+		case 3: r.sprites.push_back(name); break;
+		default: r.generic.push_back(name); break;
+		}
+		(void)size;
 	}
 
 	void skipDirector(BitReader& br);
@@ -402,6 +434,9 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 		readDeltaFields(br, it->second, serverTime_, br, &DemoDecoder::noopDelta);
 		break;
 	}
+	case SVC_CUSTOMIZATION:
+		parseCustomization(br);
+		break;
 	case SVC_RESOURCELIST:
 		parseResourceList(br);
 		break;

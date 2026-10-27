@@ -21,6 +21,7 @@
 | `blender/blender_import.py` | Импорт JSON в Blender: камера, root-объекты игроков, NLA |
 | `max/max_import.py`, `max/max_import.ms` | Импорт JSON в 3ds Max (pymxs) + обёртка MAXScript |
 | `audit/AUDIT.md` | Отчёт аудита инструментов (выбор/отклонения) |
+| `source1/` | Ветка Source 1: CS:GO/CSS демки (demoparser2 / demoinfogo) → общий JSON |
 | `demos/` | Сюда класть `.dem` |
 
 ## 1. Сборка ядра (Windows)

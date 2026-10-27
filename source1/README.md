@@ -19,7 +19,21 @@ Z-up** — поэтому сгенерированный JSON сразу при�
 | Модели MDL | **Crowbar** | Живой | zeqmacaw.github.io |
 | Модели/карты Blender | **Blender Source Tools** (Artfunkel) | Живой, 11.2025 | GitHub: Artfunkel/BlenderSourceTools |
 
-## Конвейер CS:GO
+## Конвейер CS:GO — статус парсинга (проверено 10.2026)
+
+Демка пользователя `demo-de_dust2-14_54_10.dem` (CS:GO GOTV, de_dust2,
+network protocol 13881) **распознаётся корректно**, но **все современные
+парсеры Source-1 удалили поддержку CS:GO в пользу CS2** (проверено
+эмпирически):
+- demoparser2 (0.34..0.42, все версии на PyPI) → `Source1DemoError` даже на
+  эталонных CS:GO-демках (`ok.dem` из demoinfogo-rust test-data);
+- demoinfocs-golang v4+ → `"CS:GO demos are no longer supported, downgrade to v3"`;
+- Valve demoinfogo (C++) репозиторий удалён; форки/порты не дают потиковых позиций.
+
+Поэтому конвейер demonstrable на **синтетическом CS:GO-JSON** (в формате
+конвертера: 3 игрока, 128 tick/s, follow-камера) — боевой прогон займёт
+минуту, как только появится рабочий парсер (Go/toolchain или старый
+demoparser2, см. `source1/TODO`).
 
 ```
 demo.dem ── source1/csgo_demo2json.py (demoparser2) ──> json

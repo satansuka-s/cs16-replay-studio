@@ -1,0 +1,16 @@
+# build artifacts
+core/demo_extract/build/
+*.exe
+*.obj
+
+# vendored reference trees (cloned, not committed)
+core/extern/
+
+# test outputs
+core/tests/*.json
+core/tests/*.blend
+demos/*.dem
+demos/*.json
+
+# scratch
+core/tools/_dump*.txt

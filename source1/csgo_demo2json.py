@@ -26,9 +26,13 @@ def main():
     out = 'csgo_out.json'
     follow = None
     step = 1
+    start_tick = None
+    end_tick = None
     for a in args:
         if a.startswith('--follow='): follow = int(a.split('=', 1)[1])
         elif a.startswith('--tick-step='): step = int(a.split('=', 1)[1])
+        elif a.startswith('--start-tick='): start_tick = int(a.split('=', 1)[1])
+        elif a.startswith('--end-tick='): end_tick = int(a.split('=', 1)[1])
         elif a.startswith('--out='): out = a.split('=', 1)[1]
         elif src is None: src = a
     if not src:
@@ -72,6 +76,10 @@ def main():
     last_tick = None
     for row in ticks.to_dict('records'):
         t = int(row.get('tick', 0))
+        if start_tick is not None and t < start_tick:
+            continue
+        if end_tick is not None and t > end_tick:
+            continue
         if last_tick is None:
             last_tick = t
         if step > 1 and (t - last_tick) % step != 0 and t != last_tick:

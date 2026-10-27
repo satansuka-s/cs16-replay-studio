@@ -35,6 +35,11 @@ python source1\csgo_demo2json.py demo.dem out.json --follow 2
 blender --background --python blender\blender_import.py -- --json out.json --out scene.blend
 ```
 
+Или одной командой (проверяет зависимости, конвертирует и гонит Blender):
+```
+python source1\run_pipeline.py demo.dem --out scene.blend --follow 2 --normalize
+```
+
 Поля на игрока за тик: origin (x,y,z), angles (pitch/yaw/roll в нашем виде),
 velocity, health, team, место (placeholder). **Нет sequence/frame** —
 анимации персонажей в CS:GO-демках не записываются (в отличие от GoldSrc):
@@ -45,6 +50,49 @@ velocity, health, team, место (placeholder). **Нет sequence/frame** —
 приводит к нашему виду (pitch «вверх+», yaw GoldSrc-стиля). Если ориентация
 в DCC получится зеркальной — поменяйте знаки в `csgo_demo2json.py` (строки
 `pitch = float(...)` / `yaw = float(...)`).
+
+## Общий JSON: мост между Blender / 3ds Max / After Effects
+
+Все ветки (GoldSrc + Source 1) говорят на одном JSON (`camera[]` +
+`frames[]`), поэтому «круг» замкнут одним форматом:
+
+| Шаг | Инструмент |
+|---|---|
+| Демка → JSON | `demo_extract` (CS 1.6) / `csgo_demo2json.py` (CS:GO/CS2) / `css_demo2json.py` (CSS) |
+| Blender | `blender_import.py --json ...` (камера+игроки+NLA: параметры ниже) |
+| 3ds Max | `max_import.ms` (rollout) → тот же JSON |
+| After Effects | `ae/import_camera.jsx` → выбирает JSON → камера с ключами в AE |
+| Blender → AE | `blender_import.py --export-camera-json cam.json` + `ae/import_camera.jsx` |
+| Экспорт геометрии (Blender↔Max) | FBX (встроен в оба DCC) |
+
+### Параметры импорта (`blender_import.py`)
+
+```
+--scale 0.0254         GoldSrc-дюймы → метры (для Source-ветки тоже работает)
+--fps 30               FPS таймлайна
+--cam-step N           прореживание сэмплов камеры (реальные демки ~100-128/с)
+--interp linear|bezier keyframes: linear = честное движение, bezier = плавное (default)
+--normalize            центрировать сцену (среднее камеры+игроков = глубокая точка)
+--export-camera-json P сохранить трек камеры для AE (import_camera.jsx)
+--seq-map '0:idle,1:run'  (GoldSrc) sequence → Action для NLA
+--bvh camera.bvh       импорт BVH из HLAE вместо JSON-ключей
+--tick-rate 100        тиков в секунду демки (128 для CS:GO!)
+```
+
+`csgo_demo2json.py` дополнительно: `--start-tick N --end-tick N --tick-step N
+--follow USERID`.
+
+### Настройки перед записью демки (CS:GO) для чистого результата
+
+```c
+sv_cheats 1            // в одиночной игре: отключаем HUD/сглаживание
+cl_drawhud 0
+r_drawviewmodel 0      // кино-кадры без модели оружия
+fps_max 300            // демо-таймкод с высокой частотой кадров не зависит от FPS
+mat_motion_blur 0      // размытие добавляем в DCC/АE, а не в движке
+host_timescale 1
+```
+Запись: `record имя_демки` (заканчивать `stop`), либо в меню на наблюдателе.
 
 ## Конвейер Counter-Strike: Source
 

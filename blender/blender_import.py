@@ -41,6 +41,12 @@ def parse_args(argv):
     p.add_argument('--skip-nla', action='store_true')
     p.add_argument('--cam-step', type=int, default=1)
     p.add_argument('--tick-rate', type=float, default=100.0)
+    p.add_argument('--interp', choices=['linear', 'bezier'], default='bezier',
+                   help='keyframe interpolation: linear = try to keep exact demo motion')
+    p.add_argument('--normalize', action='store_true',
+                   help='center scene around mean camera/player origin (origin = world center)')
+    p.add_argument('--export-camera-json', default='',
+                   help='write camera track JSON (for After Effects import_camera.jsx) to this path')
     return p.parse_args(argv)
 
 # ---------------------------------------------------------------- coordinate utils
@@ -156,6 +162,7 @@ def build_scene(args):
                   'blender_io_mesh_bsp, then import manually: File > Import > BSP.')
 
     if args.cam_only:
+        apply_export_and_finalize(args, data, camera, [])
         save_scene(args)
         return
 
@@ -170,6 +177,7 @@ def build_scene(args):
     frames = data.get('frames', [])
     if not frames:
         print('[nla] no entity frames in JSON')
+        apply_export_and_finalize(args, data, camera, [])
         save_scene(args)
         return
 
@@ -178,11 +186,13 @@ def build_scene(args):
     print(f'[nla] actions in file: {sorted(actions)[:20]}')
 
     entities = {e['index'] for f in frames for e in f.get('entities', [])}
+    players = []
     for idx in sorted(entities):
         player = bpy.data.objects.new(f'player_{idx}', None)
         bpy.context.collection.objects.link(player)
         player.empty_display_size = 0.5
         player.empty_display_type = 'ARROWS'
+        players.append(player)
 
         first = None
         last_t = 0.0
@@ -223,6 +233,7 @@ def build_scene(args):
         bpy.context.scene.frame_end = max(bpy.context.scene.frame_end, int(last_t * fps))
         print(f'[player] {player.name}: location keyframes {"OK" if player.animation_data and player.animation_data.action else "partial"}')
 
+    apply_export_and_finalize(args, data, camera, players)
     save_scene(args)
 
 
@@ -238,6 +249,54 @@ def push_nla(obj, action_name, start, end):
     track.name = f'{action_name}'
     strip = track.strips.new(action_name, int(start), int(end - start))
     print(f'[nla] {obj.name}: strip {action_name} [{int(start)}..{int(end)}]')
+
+
+def apply_export_and_finalize(args, data, camera, players):
+    """--interp / --normalize / --export-camera-json postprocessing."""
+    import bpy
+
+    if args.export_camera_json and data.get('camera'):
+        export = {'camera': data['camera'], 'tick_rate': args.tick_rate,
+                  'map': data.get('map', ''), 'game': data.get('game', '')}
+        path = args.export_camera_json
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(export, f, indent=1)
+        print(f'[ae] camera JSON for After Effects: {path}')
+
+    if args.normalize:
+        # mean of all camera positions (and player roots) -> subtract
+        pts = [c.get('origin', [0, 0, 0]) for c in data.get('camera', [])]
+        for f in data.get('frames', []):
+            for e in f.get('entities', []):
+                if 'origin' in e:
+                    pts.append(e['origin'])
+        if pts:
+            center = [sum(p[i] for p in pts) / len(pts) for i in range(3)]
+            for obj in bpy.context.scene.objects:
+                if obj.type == 'EMPTY' or obj.type == 'CAMERA':
+                    obj.location.x -= center[0] * args.scale
+                    obj.location.y -= center[1] * args.scale
+                    obj.location.z -= center[2] * args.scale
+            print(f'[norm] scene centered, removed {[round(c, 1) for c in center]}')
+
+    if args.interp == 'linear':
+        if not camera:
+            camera = bpy.data.objects.get('DemoCamera')
+        objs = [camera] + players if camera else players
+        n = 0
+        for obj in objs:
+            if not (obj and obj.animation_data and obj.animation_data.action):
+                continue
+            try:
+                for fc in obj.animation_data.action.fcurves:
+                    for kp in fc.keyframe_points:
+                        kp.interpolation = 'LINEAR'
+                        n += 1
+            except Exception as e:
+                # Blender 5 slotted-action API differences: fall back to safe path
+                print(f'[interp] fallback needed: {e}')
+                break
+        print(f'[interp] keyframes set to LINEAR ({n} points)')
 
 
 def save_scene(args):

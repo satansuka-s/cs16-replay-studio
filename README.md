@@ -137,6 +137,37 @@ core\tests\run_tests.bat
    `stub.blend` создаётся без ошибок.
 4. Прогон `demo_extract` по реальным демкам из `demos/` (если есть): доклад в консоль.
 
+## Кастомные карты, скины, текстуры (серверы с модифицированными файлами)
+
+Демка **не содержит сами файлы** ресурсов — только сетевое состояние и
+(иногда) список имён. Файлы нужно брать из клиентской копии игры
+(папка `cstrike/`, включая `cstrike/custom/`) или с сервера (fastdl).
+Пайплайн таких сцен такой же, как для «родных», с учётом:
+
+1. **Инвентарь ресурсов** — что сервер вообще использует:
+   - `python core\tools\scan_resources.py "D:\Counter-Strike Build 4554"`
+     сканирует установку и помечает `CUSTOM` всё, что не похоже на ванильный
+     CS 1.6 (модели, карты, звуки, WAD, TGA).
+   - `demo_extract` кладёт в JSON секцию `resources` (models/sounds/sprites/
+     skins/generic) — если демка несёт `svc_resourcelist` с именами
+     (в записях встречается не всегда).
+
+2. **Карта (.bsp)** — импорт как обычно (GoldImporter / io_mesh_bsp в Blender;
+   BSPSource→VMF→Wall Worm в Max). Текстуры:
+   - если вшиты в BSP: `python core\tools\bsp_tex_extract.py map.bsp out_dir` → TGA;
+   - если во внешних WAD: `python core\tools\wad_extract.py textures.wad out_dir` → TGA.
+   Пример: у de_survivor пустой texture-lump — текстуры берутся из
+   `cstrike.wad` (123 шт) и соседних WAD.
+
+3. **Модели/скины (.mdl)** — кастомные декомпилируются так же: Crowbar
+   (MDL→SMD+SMD textures), далее стандартная ветка (cs-smd-blender-importer /
+   BlenderSourceTools / NeilJed). Crowbar также извлекает .wav из моделей.
+
+4. **Связывание ресурсов с сущностями** — `modelindex` из JSON сущностей
+   отображается на список `resources.models` (порядок = precache-порядок),
+   а имена — на файлы `models/*.mdl`. После декомпиляции нужных MDL просто
+   импортируйте их и сопоставьте с root-объектами игроков.
+
 ## Известные ограничения
 
 - «Режиссёрская» камера HLTV: трек отсутствует в файле (генерируется локально);

@@ -107,6 +107,29 @@ static bool run(const std::string& demopath, const std::string& outpath, bool ca
 	j += "\"max_clients\": " + std::to_string(g_maxClients) + ",\n";
 	j += "\"frames_parsed\": " + std::to_string(framesParsed) + ",\n";
 	j += "\"camera_frames\": " + std::to_string(camFrames) + ",\n";
+	// resource inventory from svc_resourcelist
+	j += "\"resources\": {\n";
+	{
+		auto emit = [&](const char* key, const std::vector<std::string>& v) {
+			if (v.empty()) return;
+			j += std::string("\"") + key + "\": [\n";
+			for (size_t i = 0; i < v.size(); ++i) {
+				j += (i ? ",\n" : "\n") + std::string("  ") + json_escape(v[i]);
+			}
+			j += "\n],\n";
+		};
+		emit("models", dec.resources.models);
+		emit("sounds", dec.resources.sounds);
+		emit("skins", dec.resources.skins);
+		emit("sprites", dec.resources.sprites);
+		emit("generic", dec.resources.generic);
+		j += "\"count\": " + std::to_string(dec.resources.models.size() +
+		                                   dec.resources.sounds.size() +
+		                                   dec.resources.skins.size() +
+		                                   dec.resources.sprites.size() +
+		                                   dec.resources.generic.size()) + "\n";
+	}
+	j += "},\n";
 	j += "\"notes\": \"coordinates: GoldSrc units (inches), Z-up; angles: pitch/yaw/roll degrees\"";
 
 	// camera

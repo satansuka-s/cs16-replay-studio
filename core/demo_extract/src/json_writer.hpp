@@ -16,7 +16,7 @@ inline std::string json_escape(const std::string& s) {
 		case '\r': out += "\\r"; break;
 		case '\t': out += "\\t"; break;
 		default:
-			if ((unsigned char)c < 0x20) {
+			if ((unsigned char)c < 0x20 || (unsigned char)c > 0x7e) {
 				char buf[8];
 				std::snprintf(buf, sizeof(buf), "\\u%04x", (unsigned)c);
 				out += buf;

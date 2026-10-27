@@ -28,6 +28,15 @@ struct CameraSample {
 	int source = 0; // 0 = demo CLIENT_DATA frame, 1 = svc_clientdata, 2 = RefParams prefix
 };
 
+// Resource inventory from svc_resourcelist
+struct ResourceInfo {
+	std::vector<std::string> models;
+	std::vector<std::string> sounds;
+	std::vector<std::string> sprites;
+	std::vector<std::string> skins;
+	std::vector<std::string> generic;
+};
+
 struct EntityFrame {
 	int tick = 0;
 	float time = 0;
@@ -48,6 +57,7 @@ public:
 	int skippedUnsupported = 0;
 	std::map<int, int> opStats;
 	std::map<std::string, int> tableStats;
+	ResourceInfo resources;
 
 	void begin(int sampleInterval = 1, int maxClients = MAX_CLIENTS, int netProto = 48) {
 		sampleInterval_ = sampleInterval;
@@ -220,6 +230,43 @@ private:
 	void parseBaselines(BitReader& br);
 	void parsePacketEntities(BitReader& br, bool delta);
 	void parsePacketEntitiesClassic(BitReader& br, bool delta);
+	// ---- svc_resourcelist (Xash CL_ParseResourceList, GoldSrc) ----
+	void parseResourceList(BitReader& br) {
+		uint32_t total = br.readUBits(12);
+		ResourceInfo r;
+		for (uint32_t i = 0; i < total; ++i) {
+			uint32_t type = br.readUBits(4);
+			std::string name = br.readString();
+			br.skip(12); // index
+			br.skip(24); // download size
+			uint32_t flags = br.readUBits(3);
+			if (flags & 0x02) br.skip(16 * 8); // RES_CUSTOM: md5
+			if (br.readBit()) br.skip(16 * 8); // reserved (HLSDK resource_t, future use)
+			// sanity: recorded streams often lack a real resourcelist payload;
+			// bail out if entries look degenerate (empty names, absurd counts)
+			if (name.empty() || i > 600 || name.size() > 250 || br.bitsLeft() < 32) {
+				return; // degenerate/not a real resource list; keep previous state
+			}
+			switch (type & 0xF) {
+			case 0: r.models.push_back(name); break;   // t_model
+			case 1: r.sounds.push_back(name); break;   // t_sound
+			case 2: r.skins.push_back(name); break;    // t_skin
+			case 3: r.sprites.push_back(name); break;  // t_sprite
+			default: r.generic.push_back(name); break; // t_generic etc
+			}
+		}
+		// consistency info trailer: [1 bit need][if need: while bit: [1 isdelta][5 or 10 bits]]
+		if (br.readBit()) {
+			int last = 0;
+			while (br.readBit()) {
+				if (br.readBit()) last += (int)br.readUBits(5);
+				else last = (int)br.readUBits(10);
+			}
+		}
+		if (!r.models.empty() || !r.sounds.empty() || !r.sprites.empty() || !r.skins.empty())
+			resources = std::move(r);
+	}
+
 	void skipDirector(BitReader& br);
 	void readGSBitVec3Coord(BitReader& br);
 };
@@ -355,6 +402,9 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 		readDeltaFields(br, it->second, serverTime_, br, &DemoDecoder::noopDelta);
 		break;
 	}
+	case SVC_RESOURCELIST:
+		parseResourceList(br);
+		break;
 	default:
 		if (op > SVC_LASTMSG) {
 			// user message: [byte id][byte size][size bytes]
@@ -636,7 +686,7 @@ inline void DemoDecoder::parsePacketEntitiesClassic(BitReader& br, bool delta) {
 }
 
 // ---------------------------------------------------------------------------
-// svc_director
+// svc_resourcelist: resource inventory (models/sounds/sprites used by the server)
 // ---------------------------------------------------------------------------
 inline void DemoDecoder::skipDirector(BitReader& br) {
 	uint32_t size = br.readUBits(8);

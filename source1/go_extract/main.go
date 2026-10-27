@@ -20,7 +20,9 @@ import (
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v3/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v3/pkg/demoinfocs/common"
 	"github.com/markus-wa/demoinfocs-golang/v3/pkg/demoinfocs/events"
-)type camSample struct {
+) 
+
+type camSample struct {
 	Tick       int       `json:"tick"`
 	Time       float64   `json:"time"`
 	Origin     []float64 `json:"origin"`
@@ -106,11 +108,17 @@ func main() {
 		}
 	}
 
-	lastTick := int32(0)
+	lastTick := int(0)
 	p.RegisterEventHandler(func(e events.FrameDone) {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Fprintln(os.Stderr, "panic at FrameDone: ", r)
+				os.Exit(3)
+			}
+		}()
 		gs := p.GameState()
 		tick := gs.IngameTick()
-		if *step > 1 && tick-lastTick < int32(*step) {
+		if *step > 1 && tick-lastTick < *step {
 			return
 		}
 		lastTick = tick
@@ -124,14 +132,14 @@ func main() {
 				Index:  pl.UserID,
 				Player: true,
 				Name:   pl.Name,
-				Health: pl.Health,
+				Health: pl.Health(),
 			}
 			if pl.Team != common.TeamSpectators && (pl.Team == common.TeamTerrorists || pl.Team == common.TeamCounterTerrorists) {
 				e.Team = int(pl.Team)
 			}
 			pos := pl.Position()
 			e.Origin = []float64{round2(pos.X), round2(pos.Y), round2(pos.Z)}
-			e.Angles = []float64{round2(pl.ViewDirectionX()), round2(pl.ViewDirectionY()), 0}
+			e.Angles = []float64{round2(float64(pl.ViewDirectionX())), round2(float64(pl.ViewDirectionY())), 0}
 			e.Velocity = []float64{round2(pl.Velocity().X), round2(pl.Velocity().Y), round2(pl.Velocity().Z)}
 			frame.Entities = append(frame.Entities, e)
 			if *follow > 0 && pl.UserID == *follow && len(e.Origin) == 3 && len(e.Angles) == 3 {
@@ -158,6 +166,6 @@ func main() {
 	fmt.Printf("done: %s (%d frames, %d camera samples)\n", outPath, d.FramesParsed, len(d.Camera))
 }
 
-func round2(v float32) float64 {
+func round2(v float64) float64 {
 	return float64(int64(v*100+0.5)) / 100
 }

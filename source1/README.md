@@ -21,26 +21,32 @@ Z-up** — поэтому сгенерированный JSON сразу при�
 
 ## Конвейер CS:GO — статус парсинга (проверено 10.2026)
 
-Демка пользователя `demo-de_dust2-14_54_10.dem` (CS:GO GOTV, de_dust2,
-network protocol 13881) **распознаётся корректно**, но **все современные
-парсеры Source-1 удалили поддержку CS:GO в пользу CS2** (проверено
-эмпирически):
-- demoparser2 (0.34..0.42, все версии на PyPI) → `Source1DemoError` даже на
-  эталонных CS:GO-демках (`ok.dem` из demoinfogo-rust test-data);
-- demoinfocs-golang v4+ → `"CS:GO demos are no longer supported, downgrade to v3"`;
-- Valve demoinfogo (C++) репозиторий удалён; форки/порты не дают потиковых позиций.
+**Работает.** Для CS:GO собран собственный экстрактор `source1/go_extract/csgo_extract.exe`
+(Go, demoinfocs-golang v3 — последняя ветка с поддержкой CS:GO).
 
-Поэтому конвейер demonstrable на **синтетическом CS:GO-JSON** (в формате
-конвертера: 3 игрока, 128 tick/s, follow-камера) — боевой прогон займёт
-минуту, как только появится рабочий парсер (Go/toolchain или старый
-demoparser2, см. `source1/TODO`).
+Проверка End-to-End на реальной CS:GO-демке (ok.dem, de_dust2, 2017):
+```
+csgo_extract.exe demo.dem out.json --follow 1
+blender --background --python blender\blender_import.py -- --json out.json --out scene.blend
+→ 1625 кадров, игроки с origin/angles/velocity, .blend собран ✅
+```
+
+Версии экосистемы: демопарсер2 (0.34..0.42) потерял Source1 (`Source1DemoError`),
+go.dev и pacman-зеркала в этой сети режутся; MSYS2 (GitHub-архив) → pacman →
+`mingw-w64-x86_64-go 1.27.3` — сборка прошла именно так.
+
+Известные ограничения на большой демке (202 МБ, 2018, GOTV): demoinfocs v3 запрашивает
+~1.8 ГБ одним блоком (commit limit виртуальной памяти, errno 1455) — на слабых
+машинах/маленьком pagefile падает с OOM. Лечение: больше своп/коммита либо
+другая демка (современные CS:GO-демки такого выделения не требуют).
 
 ```
-demo.dem ── source1/csgo_demo2json.py (demoparser2) ──> json
+demo.dem ── source1/go_extract/csgo_extract.exe (Go, demoinfocs v3) ──> json
     └──> blender_import.py / max_import.py (общая ветка, тот же JSON)
 карта:     SourceIO (Blender) / BSPSource→VMF→Wall Worm (Max)
 модели:    Crowbar (MDL→SMD), импорт как обычно
 камера:    --follow USERID (наш конвертер) или HLAE BVH
+CS2:       тот же готовый конвейер, но через demoparser2 (csgo_demo2json.py)
 ```
 
 ```

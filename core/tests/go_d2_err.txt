@@ -1,0 +1,164 @@
+runtime: VirtualAlloc of 1792958464 bytes failed with errno=1455
+fatal error: out of memory
+
+runtime stack:
+runtime.throw({0x7ff72d59ea24?, 0xcd673ff6c0?})
+	C:/dev/msys64/mingw64/lib/go/src/runtime/panic.go:1243 +0x4d fp=0xcd673ff688 sp=0xcd673ff658 pc=0x7ff72d3636ed
+runtime.sysUsedOS(0x16f23f0c2000, 0x6ade6000)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mem_windows.go:83 +0x1e5 fp=0xcd673ff708 sp=0xcd673ff688 pc=0x7ff72d30a065
+runtime.sysUsed(...)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mem.go:91
+runtime.(*mheap).allocSpan(0x7ff72d9fd0e0, 0x356f3, 0x0, 0x1)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mheap.go:1395 +0x4a7 fp=0xcd673ff7b8 sp=0xcd673ff708 pc=0x7ff72d31efe7
+runtime.(*mheap).alloc.func1()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mheap.go:1008 +0x5c fp=0xcd673ff800 sp=0xcd673ff7b8 pc=0x7ff72d35b5dc
+runtime.systemstack(0x7ff72d9f59c0)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:531 +0x49 fp=0xcd673ff810 sp=0xcd673ff800 pc=0x7ff72d368229
+
+goroutine 1 gp=0x16f0e14e4000 m=0 mp=0x7ff72d9f6780 [running]:
+runtime.systemstack_switch()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:481 +0x8 fp=0x16f0e2c8ee58 sp=0x16f0e2c8ee48 pc=0x7ff72d3681c8
+runtime.(*mheap).alloc(0x6ade6000?, 0x356f3?, 0x72?)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mheap.go:1002 +0x57 fp=0x16f0e2c8eea0 sp=0x16f0e2c8ee58 pc=0x7ff72d31e777
+runtime.(*mcache).allocLarge(0x5?, 0x6ade6000, 0x1)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mcache.go:257 +0x7f fp=0x16f0e2c8eef0 sp=0x16f0e2c8eea0 pc=0x7ff72d307adf
+runtime.mallocgcLarge(0x16f1831e6000?, 0x0, 0x0)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/malloc.go:1709 +0x79 fp=0x16f0e2c8ef48 sp=0x16f0e2c8eef0 pc=0x7ff72d301679
+runtime.mallocgc(0x6ade6000, 0x0, 0x0)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/malloc.go:1137 +0x11a fp=0x16f0e2c8ef78 sp=0x16f0e2c8ef48 pc=0x7ff72d36175a
+runtime.growslice(0x16f1831e6000, 0x16f1831e6000?, 0x557e9fb8?, 0x557ea000?, 0x16f16a302b6d?)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/slice.go:265 +0x573 fp=0x16f0e2c8efe8 sp=0x16f0e2c8ef78 pc=0x7ff72d3652d3
+encoding/json/jsontext.(*encoderState).reformatObject(0x16f0e1e0e500, {0x16f1831e6000?, 0x4737f7b7?, 0x557ea000?}, {0x16f16a302b29, 0x18ee3309, 0x18ee34d7}, 0x5)
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:759 +0x7d2 fp=0x16f0e2c8f150 sp=0x16f0e2c8efe8 pc=0x7ff72d400472
+encoding/json/jsontext.(*encoderState).reformatValue(0x16f0e1e0e500?, {0x16f1831e6000, 0x557e9f2c, 0x557ea000}, {0x16f16a302b29?, 0x1a6a66c6?, 0x1a6a6894?}, 0x5?)
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:705 +0x373 fp=0x16f0e2c8f1c8 sp=0x16f0e2c8f150 pc=0x7ff72d3ff9d3
+encoding/json/jsontext.(*encoderState).reformatArray(0x16f0e1e0e500, {0x16f1831e6000?, 0x557ea000?, 0x16f16a302652?}, {0x16f16a302668, 0x18ee37ca, 0x18ee3998}, 0x4)
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:863 +0x3d7 fp=0x16f0e2c8f2a8 sp=0x16f0e2c8f1c8 pc=0x7ff72d401957
+encoding/json/jsontext.(*encoderState).reformatValue(0x16f0e1e0e500?, {0x16f1831e6000, 0x557e911a, 0x557ea000}, {0x16f16a302668, 0x22bf356a?, 0x22bf3738?}, 0x4?)
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:707 +0xbe fp=0x16f0e2c8f320 sp=0x16f0e2c8f2a8 pc=0x7ff72d3ff71e
+encoding/json/jsontext.(*encoderState).reformatObject(0x16f0e1e0e500, {0x16f1831e6000?, 0x13a?, 0x44654000?}, {0x16f16a30263c, 0x18ee37f6, 0x18ee39c4}, 0x3)
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:792 +0xba5 fp=0x16f0e2c8f488 sp=0x16f0e2c8f320 pc=0x7ff72d400845
+encoding/json/jsontext.(*encoderState).reformatValue(0x16f0e168a008?, {0x16f1831e6000, 0x557e90d6, 0x557ea000}, {0x16f16a30263c?, 0x7ff72d9a8bd8?, 0x16f0e15115d0?}, 0x7ff72d3f0e85?)
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:705 +0x373 fp=0x16f0e2c8f500 sp=0x16f0e2c8f488 pc=0x7ff72d3ff9d3
+encoding/json/jsontext.(*encoderState).reformatArray(0x16f0e1e0e500, {0x16f1faa6e000?, 0x44654000?, 0x16f14c580008?}, {0x16f14c580110, 0x36c65d22, 0x36c65ef0}, 0x2)
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:863 +0x3d7 fp=0x16f0e2c8f5e0 sp=0x16f0e2c8f500 pc=0x7ff72d401957
+encoding/json/jsontext.(*encoderState).reformatValue(0x270f?, {0x16f1faa6e000, 0x134, 0x44654000}, {0x16f14c580110, 0x7ff72d56d05f?, 0x16f0e1c35558?}, 0x17ff72d8ecb30?)
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:707 +0xbe fp=0x16f0e2c8f658 sp=0x16f0e2c8f5e0 pc=0x7ff72d3ff71e
+encoding/json/jsontext.(*encoderState).reformatObject(0x16f0e1e0e500, {0x16f1faa6e000?, 0x0?, 0x0?}, {0x16f14c580000, 0x36c65e32, 0x36c66000}, 0x1)
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:792 +0xba5 fp=0x16f0e2c8f7c0 sp=0x16f0e2c8f658 pc=0x7ff72d400845
+encoding/json/jsontext.(*encoderState).reformatValue(0x16f0e1e0e500?, {0x16f1faa6e000, 0x0, 0x44654000}, {0x16f14c580000?, 0x16f0e15118c8?, 0x7ff72d403765?}, 0x16f0e1e0e500?)
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:705 +0x373 fp=0x16f0e2c8f838 sp=0x16f0e2c8f7c0 pc=0x7ff72d3ff9d3
+encoding/json/jsontext.(*encoderState).WriteValue(0x16f0e1e0e500, {0x16f14c580000, 0x7?, 0x36c66000})
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/encode.go:543 +0x26e fp=0x16f0e2c8f8d8 sp=0x16f0e2c8f838 pc=0x7ff72d3fe60e
+encoding/json/jsontext.AppendFormat[...]({0x0?, 0x0, 0x0}, {0x16f14c580000, 0x36c65e32, 0x36c66000}, {0x16f0e1511a70, 0x7, 0x7})
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/jsontext/value.go:49 +0xe9 fp=0x16f0e2c8f988 sp=0x16f0e2c8f8d8 pc=0x7ff72d450ba9
+encoding/json.appendIndent({0x0, 0x0, 0x0}, {0x16f14c580000, 0x36c65e32, 0x36c66000}, {0x0, 0x0}, {0x7ff72d59c013, 0x2})
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/v2_indent.go:114 +0x311 fp=0x16f0e2c8faf8 sp=0x16f0e2c8f988 pc=0x7ff72d44e8b1
+encoding/json.MarshalIndent({0x7ff72d9a1c30?, 0x16f0ea6fa480?}, {0x0, 0x0}, {0x7ff72d59c013, 0x2})
+	C:/dev/msys64/mingw64/lib/go/src/encoding/json/v2_encode.go:197 +0xa8 fp=0x16f0e2c8fb68 sp=0x16f0e2c8faf8 pc=0x7ff72d44e308
+main.main()
+	C:/dev/cs16db/source1/go_extract/main.go:162 +0x7fb fp=0x16f0e2c8feb8 sp=0x16f0e2c8fb68 pc=0x7ff72d58995b
+runtime.main()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:302 +0x3fb fp=0x16f0e2c8ffe0 sp=0x16f0e2c8feb8 pc=0x7ff72d33129b
+runtime.goexit({})
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:1264 +0x1 fp=0x16f0e2c8ffe8 sp=0x16f0e2c8ffe0 pc=0x7ff72d369d41
+
+goroutine 2 gp=0x16f0e14e4780 m=nil [force gc (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:474 +0xca fp=0x16f0e14e7fa8 sp=0x16f0e14e7f88 pc=0x7ff72d36380a
+runtime.goparkunlock(...)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:480
+runtime.forcegchelper()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:387 +0xb8 fp=0x16f0e14e7fe0 sp=0x16f0e14e7fa8 pc=0x7ff72d331538
+runtime.goexit({})
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:1264 +0x1 fp=0x16f0e14e7fe8 sp=0x16f0e14e7fe0 pc=0x7ff72d369d41
+created by runtime.init.7 in goroutine 1
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:375 +0x1a
+
+goroutine 3 gp=0x16f0e14e4b40 m=nil [GC sweep wait]:
+runtime.gopark(0x1?, 0x0?, 0x0?, 0x0?, 0x0?)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:474 +0xca fp=0x16f0e14e9f88 sp=0x16f0e14e9f68 pc=0x7ff72d36380a
+runtime.goparkunlock(...)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:480
+runtime.bgsweep(0x16f0e14f2000)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgcsweep.go:324 +0x151 fp=0x16f0e14e9fc8 sp=0x16f0e14e9f88 pc=0x7ff72d31b371
+runtime.gcenable.gowrap1()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:214 +0x17 fp=0x16f0e14e9fe0 sp=0x16f0e14e9fc8 pc=0x7ff72d35a8f7
+runtime.goexit({})
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:1264 +0x1 fp=0x16f0e14e9fe8 sp=0x16f0e14e9fe0 pc=0x7ff72d369d41
+created by runtime.gcenable in goroutine 1
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:214 +0x66
+
+goroutine 4 gp=0x16f0e14e4d20 m=nil [GC scavenge wait]:
+runtime.gopark(0x10000?, 0x1ce7bf4?, 0x0?, 0x0?, 0x0?)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:474 +0xca fp=0x16f0e14f9f78 sp=0x16f0e14f9f58 pc=0x7ff72d36380a
+runtime.goparkunlock(...)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:480
+runtime.(*scavengerState).park(0x7ff72d9f5780)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgcscavenge.go:425 +0x49 fp=0x16f0e14f9fa8 sp=0x16f0e14f9f78 pc=0x7ff72d318e89
+runtime.bgscavenge(0x16f0e14f2000)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgcscavenge.go:658 +0x59 fp=0x16f0e14f9fc8 sp=0x16f0e14f9fa8 pc=0x7ff72d3193f9
+runtime.gcenable.gowrap2()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:215 +0x17 fp=0x16f0e14f9fe0 sp=0x16f0e14f9fc8 pc=0x7ff72d35a8b7
+runtime.goexit({})
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:1264 +0x1 fp=0x16f0e14f9fe8 sp=0x16f0e14f9fe0 pc=0x7ff72d369d41
+created by runtime.gcenable in goroutine 1
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:215 +0xa5
+
+goroutine 5 gp=0x16f0e14e50e0 m=nil [finalizer wait]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:474 +0xca fp=0x16f0e14fbe20 sp=0x16f0e14fbe00 pc=0x7ff72d36380a
+runtime.runFinalizers()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mfinal.go:210 +0x107 fp=0x16f0e14fbfe0 sp=0x16f0e14fbe20 pc=0x7ff72d30c407
+runtime.goexit({})
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:1264 +0x1 fp=0x16f0e14fbfe8 sp=0x16f0e14fbfe0 pc=0x7ff72d369d41
+created by runtime.createfing in goroutine 1
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mfinal.go:172 +0x3d
+
+goroutine 6 gp=0x16f0e14e52c0 m=nil [GC worker (idle)]:
+runtime.gopark(0x593a38ebad7c?, 0x3?, 0x68?, 0xa1?, 0x0?)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:474 +0xca fp=0x16f0e14ebf40 sp=0x16f0e14ebf20 pc=0x7ff72d36380a
+runtime.gcBgMarkWorker(0x16f0e14bc1c0)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1807 +0xeb fp=0x16f0e14ebfc8 sp=0x16f0e14ebf40 pc=0x7ff72d30f7eb
+runtime.gcBgMarkStartWorkers.gowrap1()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1711 +0x17 fp=0x16f0e14ebfe0 sp=0x16f0e14ebfc8 pc=0x7ff72d35adf7
+runtime.goexit({})
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:1264 +0x1 fp=0x16f0e14ebfe8 sp=0x16f0e14ebfe0 pc=0x7ff72d369d41
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1711 +0xfc
+
+goroutine 7 gp=0x16f0e14e54a0 m=nil [GC worker (idle)]:
+runtime.gopark(0x59391fb7baa4?, 0x3?, 0x0?, 0x0?, 0x0?)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:474 +0xca fp=0x16f0e14f5f40 sp=0x16f0e14f5f20 pc=0x7ff72d36380a
+runtime.gcBgMarkWorker(0x16f0e14bc1c0)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1807 +0xeb fp=0x16f0e14f5fc8 sp=0x16f0e14f5f40 pc=0x7ff72d30f7eb
+runtime.gcBgMarkStartWorkers.gowrap1()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1711 +0x17 fp=0x16f0e14f5fe0 sp=0x16f0e14f5fc8 pc=0x7ff72d35adf7
+runtime.goexit({})
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:1264 +0x1 fp=0x16f0e14f5fe8 sp=0x16f0e14f5fe0 pc=0x7ff72d369d41
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1711 +0xfc
+
+goroutine 18 gp=0x16f0e15081e0 m=nil [GC worker (idle)]:
+runtime.gopark(0x593a38ebad7c?, 0x3?, 0x48?, 0x3e?, 0x0?)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:474 +0xca fp=0x16f0e1513f40 sp=0x16f0e1513f20 pc=0x7ff72d36380a
+runtime.gcBgMarkWorker(0x16f0e14bc1c0)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1807 +0xeb fp=0x16f0e1513fc8 sp=0x16f0e1513f40 pc=0x7ff72d30f7eb
+runtime.gcBgMarkStartWorkers.gowrap1()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1711 +0x17 fp=0x16f0e1513fe0 sp=0x16f0e1513fc8 pc=0x7ff72d35adf7
+runtime.goexit({})
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:1264 +0x1 fp=0x16f0e1513fe8 sp=0x16f0e1513fe0 pc=0x7ff72d369d41
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1711 +0xfc
+
+goroutine 34 gp=0x16f0e1604000 m=nil [GC worker (idle)]:
+runtime.gopark(0x593a38ebad7c?, 0x3?, 0x48?, 0x3e?, 0x0?)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/proc.go:474 +0xca fp=0x16f0e150ff40 sp=0x16f0e150ff20 pc=0x7ff72d36380a
+runtime.gcBgMarkWorker(0x16f0e14bc1c0)
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1807 +0xeb fp=0x16f0e150ffc8 sp=0x16f0e150ff40 pc=0x7ff72d30f7eb
+runtime.gcBgMarkStartWorkers.gowrap1()
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1711 +0x17 fp=0x16f0e150ffe0 sp=0x16f0e150ffc8 pc=0x7ff72d35adf7
+runtime.goexit({})
+	C:/dev/msys64/mingw64/lib/go/src/runtime/asm_amd64.s:1264 +0x1 fp=0x16f0e150ffe8 sp=0x16f0e150ffe0 pc=0x7ff72d369d41
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	C:/dev/msys64/mingw64/lib/go/src/runtime/mgc.go:1711 +0xfc

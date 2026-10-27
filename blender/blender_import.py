@@ -110,7 +110,7 @@ def build_scene(args):
         bpy.context.collection.objects.link(camera)
         camera.rotation_mode = 'XYZ'
 
-        cam = data.get('camera', [])
+        cam = data.get('camera') or []
         if len(cam) == 1:
             # single sample: static camera
             c = cam[0]

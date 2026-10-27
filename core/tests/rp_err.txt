@@ -1,0 +1,25 @@
+TypeError: EnumProperty(...): 'default' can only be an integer when 'items' is a function
+INFO:bl_ext.user_default.modern_primitive:=========== register() ===========
+INFO:bl_ext.user_default.modern_primitive:Begin importing submodules...
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'preference'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'modern_primitive'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'focus_modifier'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'equalize_dcube_size'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'version'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'panel'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'check_editmesh'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'wireframe'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'switch_wireframe'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'apply_scale'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'hud.hud_draw'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'restore_default'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'convert'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'apply_mesh'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'reset_origin'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'store_gizmoinfo'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'extract_primitive'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'modal_edit'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'apply_material'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule 'material_prop'
+INFO:bl_ext.user_default.modern_primitive:Importing submodule Done!
+INFO:bl_ext.user_default.modern_primitive:=========== unregister() ===========

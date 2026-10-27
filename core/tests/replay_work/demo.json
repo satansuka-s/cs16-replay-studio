@@ -1,0 +1,154 @@
+{
+"demo": "C:\\dev\\cs16db\\demos\\synthetic.dem",
+"map": "de_test",
+"game": "cstrike",
+"demo_protocol": 5,
+"net_protocol": 48,
+"tick_interval": 8,
+"max_clients": 32,
+"frames_parsed": 38,
+"camera_frames": 4,
+"resources": {
+"count": 0
+},
+"notes": "coordinates: GoldSrc units (inches), Z-up; angles: pitch/yaw/roll degrees",
+"camera": [
+{
+"tick": 0,
+"time": 0,
+"origin": [100, 50, 64],
+"viewangles": [0, 45, 90],
+"fov": 90,
+"source": 0
+},
+{
+"tick": 10,
+"time": 0.1,
+"origin": [100, 50, 64],
+"viewangles": [0, 45, 90],
+"fov": 90,
+"source": 0
+},
+{
+"tick": 20,
+"time": 0.2,
+"origin": [100, 50, 64],
+"viewangles": [0, 45, 90],
+"fov": 90,
+"source": 0
+},
+{
+"tick": 30,
+"time": 0.3,
+"origin": [100, 50, 64],
+"viewangles": [0, 45, 90],
+"fov": 90,
+"source": 0
+}
+],
+"frames": [
+{
+"tick": 0,
+"time": 0,
+"entities": [
+
+]
+},
+{
+"tick": 8,
+"time": 0.08,
+"entities": [
+{
+"index": 1,
+"player": true,
+"origin": [31, 3, 24],
+"angles": [0, 0, 0],
+"modelindex": 2,
+"sequence": 1,
+"frame": 0.267,
+"animtime": 0.06,
+"framerate": 30,
+"body": 0,
+"cycle": 0.6
+},
+{
+"index": 2,
+"player": true,
+"origin": [36, 6, 24],
+"angles": [0, 0, 0],
+"modelindex": 2,
+"sequence": 1,
+"frame": 0.267,
+"animtime": 0.04,
+"framerate": 30,
+"body": 0,
+"cycle": 1.2
+}
+]
+},
+{
+"tick": 16,
+"time": 0.16,
+"entities": [
+{
+"index": 1,
+"player": true,
+"origin": [47, 3, 28],
+"angles": [0, 0, 0],
+"modelindex": 2,
+"sequence": 0,
+"frame": 0.2,
+"animtime": 0.14,
+"framerate": 30,
+"body": 0,
+"cycle": 0.5999999
+},
+{
+"index": 2,
+"player": true,
+"origin": [52, 6, 28],
+"angles": [0, 0, 0],
+"modelindex": 2,
+"sequence": 0,
+"frame": 0.2,
+"animtime": 0.12,
+"framerate": 30,
+"body": 0,
+"cycle": 1.2
+}
+]
+},
+{
+"tick": 24,
+"time": 0.24,
+"entities": [
+{
+"index": 1,
+"player": true,
+"origin": [63, 3, 32],
+"angles": [0, 0, 0],
+"modelindex": 2,
+"sequence": 1,
+"frame": 0.133,
+"animtime": 0.22,
+"framerate": 30,
+"body": 0,
+"cycle": 0.5999999
+},
+{
+"index": 2,
+"player": true,
+"origin": [68, 6, 32],
+"angles": [0, 0, 0],
+"modelindex": 2,
+"sequence": 1,
+"frame": 0.133,
+"animtime": 0.2,
+"framerate": 30,
+"body": 0,
+"cycle": 1.2
+}
+]
+}
+]
+}

@@ -1,0 +1,41 @@
+Blender 5.0.1 (hash a3db93c5b259 built 2025-12-16 01:32:30)
+Reloading external rigs...
+Reloading external metarigs...
+Pillow is not installed. Please install it using: pip install Pillow
+register_class(...):
+Предупреждение: "PT_PSXRetroPanel" не содержит "_PT_" с префиксом и суффиксом
+[PSX] register_class failed: LowPolyHelperOperator register_class(...): already registered as a subclass 'LowPolyHelperOperator'
+[PSX] register_class failed: PSXTextureGeneratorOperator register_class(...): already registered as a subclass 'PSXTextureGeneratorOperator'
+[PSX] register_class failed: PSXTextureBakeOperator register_class(...): already registered as a subclass 'PSXTextureBakeOperator'
+[PSX] register_class failed: PSXTextureDitherOperator register_class(...): already registered as a subclass 'PSXTextureDitherOperator'
+[PSX] register_class failed: PSXTextureUndoDitherOperator register_class(...): already registered as a subclass 'PSXTextureUndoDitherOperator'
+[PSX] register_class failed: PSXTexturePostFXApplyOperator register_class(...): already registered as a subclass 'PSXTexturePostFXApplyOperator'
+[PSX] register_class failed: PSXTexturePostFXRemoveOperator register_class(...): already registered as a subclass 'PSXTexturePostFXRemoveOperator'
+[PSX] register_class failed: PSXVertexWobbleOperator register_class(...): already registered as a subclass 'PSXVertexWobbleOperator'
+[PSX] register_class failed: PSXVertexWobbleRemoveOperator register_class(...): already registered as a subclass 'PSXVertexWobbleRemoveOperator'
+[PSX] register_class failed: PSX_OT_FixTextures register_class(...): already registered as a subclass 'PSX_OT_FixTextures'
+[PSX] register_class failed: PSXRenderSettingsOperator register_class(...): already registered as a subclass 'PSXRenderSettingsOperator'
+[PSX] register_class failed: PSX_PT_Tools register_class(...): already registered as a subclass 'PSX_PT_Tools'
+[PSX] register_class failed: PSXRetroPanel register_class(...): already registered as a subclass 'PSXRetroPanel'
+[PSX] register_class failed: PSXPRO_OT_Add register_class(...): already registered as a subclass 'PSXPRO_OT_Add'
+[PSX] register_class failed: PSXPRO_OT_Remove register_class(...): already registered as a subclass 'PSXPRO_OT_Remove'
+[PSX] register_class failed: PSXPRO_OT_SavePreset register_class(...): already registered as a subclass 'PSXPRO_OT_SavePreset'
+[PSX] register_class failed: PSXPRO_OT_ApplyPreset register_class(...): already registered as a subclass 'PSXPRO_OT_ApplyPreset'
+[PSX] register_class failed: VSN_Props register_class(...): already registered as a subclass 'VSN_Props'
+[PSX] register_class failed: VSN_OT_Append register_class(...): already registered as a subclass 'VSN_OT_Append'
+[PSX] register_class failed: VSN_OT_Apply register_class(...): already registered as a subclass 'VSN_OT_Apply'
+[PSX] register_class failed: VSN_OT_Remove register_class(...): already registered as a subclass 'VSN_OT_Remove'
+[PSX] register_class failed: PSXUVDistortProps register_class(...): already registered as a subclass 'PSXUVDistortProps'
+[PSX] register_class failed: PSX_OT_TD_Apply register_class(...): already registered as a subclass 'PSX_OT_TD_Apply'
+[PSX] register_class failed: PSX_OT_TD_Remove register_class(...): already registered as a subclass 'PSX_OT_TD_Remove'
+Cannot read ARP prefs
+Update armature presets...
+INFO: Ucupaint 2.4.6 is registered!
+INFO: Ucupaint update routine is done in 0.00 ms!
+[bsp] map_dust2: 0 verts, 0 polys, mats []
+[bsp] textures -> C:\dev\cs16db\core\tests\map_tex2 (22)
+objects: ['Cube', 'Light', 'Camera', 'map_dust2']
+materials: ['Dots Stroke', 'Material']
+INFO: Ucupaint 2.4.6 is unregistered!
+
+Blender quit

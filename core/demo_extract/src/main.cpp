@@ -35,7 +35,7 @@ static void emitVec(std::string& j, const char* indent, const float v[3]) {
 static bool run(const std::string& demopath, const std::string& outpath, bool camOnly) {
 	DemoFile demo(demopath, true);
 	DemoDecoder dec;
-	dec.begin(g_tickInterval, g_maxClients);
+	dec.begin(g_tickInterval, g_maxClients, (int)demo.header.netProtocol);
 
 	const DemoHeader& h = demo.header;
 	int framesParsed = 0;
@@ -108,31 +108,6 @@ static bool run(const std::string& demopath, const std::string& outpath, bool ca
 	j += "\"frames_parsed\": " + std::to_string(framesParsed) + ",\n";
 	j += "\"camera_frames\": " + std::to_string(camFrames) + ",\n";
 	j += "\"notes\": \"coordinates: GoldSrc units (inches), Z-up; angles: pitch/yaw/roll degrees\"";
-
-	// stats
-	j += ",\n\"stats\": {\n";
-	j += "\"netmsg_count\": " + std::to_string(dec.msgCount) + ",\n";
-	j += "\"tables\": {\n";
-	{
-		bool first = true;
-		for (const auto& kv : dec.tableStats) {
-			if (!first) j += ",\n";
-			first = false;
-			j += json_escape(kv.first) + ": " + std::to_string(kv.second);
-		}
-		j += "\n},\n";
-	}
-	j += "\"opcodes\": {\n";
-	{
-		bool first = true;
-		for (const auto& kv : dec.opStats) {
-			if (!first) j += ",\n";
-			first = false;
-			j += "\"" + std::to_string(kv.first) + "\": " + std::to_string(kv.second);
-		}
-		j += "\n}\n";
-	}
-	j += "}";
 
 	// camera
 	j += ",\n\"camera\": [\n";

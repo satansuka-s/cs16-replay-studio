@@ -124,24 +124,36 @@ inline bool readMetaFields(BitReader& br, GoldSrcMetaFields& m) {
 	return true;
 }
 
-// Read one delta record's fields with a bit-mask (Delta_ParseGSFields).
-// Applies values into `to` using the `pick` callback returning a mutable output pointer.
+// Read one delta record's fields. Two stream layouts:
+//  - GoldSrc (proto 48/49): 3-bit byte count + mask bytes + changed values
+//  - classic  (proto 47):   per field: 1 bit changed + optional value
 template <typename StateT>
 void readDeltaFields(BitReader& br, const DeltaTable& table, float timebase, StateT& to,
-                     void (*apply)(StateT&, const DeltaField&, float)) {
-	uint32_t c = br.readUBits(3);
-	if (c > 8) throw std::runtime_error("delta: bad byte count");
-	uint8_t mask[8] = {0};
-	for (uint32_t i = 0; i < c; ++i)
-		mask[i] = (uint8_t)br.readUBits(8);
+                     void (*apply)(StateT&, const DeltaField&, float), bool classicMode = false) {
+	if (!classicMode) {
+		uint32_t c = br.readUBits(3);
+		if (c > 8) throw std::runtime_error("delta: bad byte count");
+		uint8_t mask[8] = {0};
+		for (uint32_t i = 0; i < c; ++i)
+			mask[i] = (uint8_t)br.readUBits(8);
 
-	for (size_t i = 0; i < table.fields.size(); ++i) {
-		size_t byteIdx = i >> 3;
-		if (byteIdx >= 8) break;
-		if (mask[byteIdx] & (1 << (i & 7))) {
-			const DeltaField& f = table.fields[i];
+		for (size_t i = 0; i < table.fields.size(); ++i) {
+			size_t byteIdx = i >> 3;
+			if (byteIdx >= 8) break;
+			if (mask[byteIdx] & (1 << (i & 7))) {
+				const DeltaField& f = table.fields[i];
+				if (f.isString())
+					f.readStringValue(br); // ignore string fields (not used in entity state we track)
+				else
+					apply(to, f, f.readFloatValue(br, timebase));
+			}
+		}
+	} else {
+		// classic proto 47: per-field changed bit, no mask
+		for (const auto& f : table.fields) {
+			if (!br.readBit()) continue;
 			if (f.isString())
-				f.readStringValue(br); // ignore string fields (not used in entity state we track)
+				f.readStringValue(br);
 			else
 				apply(to, f, f.readFloatValue(br, timebase));
 		}

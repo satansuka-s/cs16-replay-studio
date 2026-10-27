@@ -4,12 +4,17 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
+#include <fstream>
 #include <map>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 #include "bitreader.hpp"
+#include "builtin_delta.hpp"
 #include "delta.hpp"
+#include "delta_lst.hpp"
 #include "netprotocol.hpp"
 
 namespace gs {
@@ -44,12 +49,13 @@ public:
 	std::map<int, int> opStats;
 	std::map<std::string, int> tableStats;
 
-	void begin(int sampleInterval = 1, int maxClients = MAX_CLIENTS) {
+	void begin(int sampleInterval = 1, int maxClients = MAX_CLIENTS, int netProto = 48) {
 		sampleInterval_ = sampleInterval;
 		maxClients_ = maxClients;
 		nextSampleTick_ = -1;
 		serverTime_ = 0;
 		instancedBaselineMode_ = false;
+		classicMode_ = (netProto < 48); // proto 47 -> classic MSG_ReadDeltaEntity layout
 	}
 
 	void addCameraFrame(float origin[3], float viewangles[3], float fov, int tick, float time) {
@@ -134,10 +140,48 @@ private:
 
 	const DeltaTable& requireTable(const std::string& name) {
 		auto it = tables_.find(name);
-		if (it == tables_.end())
-			throw std::runtime_error("delta table not found: " + name);
+		if (it == tables_.end()) {
+			ensureBuiltinTables();
+			it = tables_.find(name);
+			if (it == tables_.end())
+				throw std::runtime_error("delta table not found: " + name);
+		}
 		return it->second;
 	}
+
+	// CS 1.6 delta tables from cstrike/delta.lst (fallback for HLTV demos that
+	// do not retransmit svc_deltatable in the recording).
+	// Different server/build generations shipped slightly different layouts;
+	// CS16DB_DELTA_LST overrides the builtin one.
+	void ensureBuiltinTables() {
+		if (builtinLoaded_) return;
+		builtinLoaded_ = true;
+		std::string text = builtinDeltaLst();
+		if (const char* over = std::getenv("CS16DB_DELTA_LST")) {
+			std::ifstream f(over);
+			if (f) {
+				std::stringstream ss;
+				ss << f.rdbuf();
+				text = ss.str();
+			}
+		}
+		static const char* names[] = {
+			"clientdata_t", "entity_state_t", "entity_state_player_t",
+			"custom_entity_state_t", "event_t", "usercmd_t", "weapon_data_t",
+		};
+		for (const char* n : names) {
+			if (tables_.count(n)) continue;
+			DeltaTable t;
+			if (parseDeltaLstTable(text, n, t) && !t.fields.empty()) {
+				tables_[n] = std::move(t);
+				tableStats[std::string("builtin:") + n]++;
+			}
+		}
+	}
+
+	bool builtinLoaded_ = false;
+	bool classicMode_ = false; // proto 47 entity packet layout
+	int viewEntity_ = 0; // last svc_setview target
 
 	static void applyEntityField(EntityState& st, const DeltaField& f, float v) {
 		const std::string& n = f.name;
@@ -175,6 +219,7 @@ private:
 	void parseEvents(BitReader& br, bool reliable);
 	void parseBaselines(BitReader& br);
 	void parsePacketEntities(BitReader& br, bool delta);
+	void parsePacketEntitiesClassic(BitReader& br, bool delta);
 	void skipDirector(BitReader& br);
 	void readGSBitVec3Coord(BitReader& br);
 };
@@ -195,7 +240,7 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 		br.readString();
 		break;
 	case SVC_SETVIEW:
-		br.skip(16);
+		viewEntity_ = (int)br.readUBits(16);
 		break;
 	case SVC_SETANGLE:
 		br.skip(16 * 3);
@@ -291,10 +336,12 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 		br.readString();
 		break;
 	case SVC_PACKETENTITIES:
-		parsePacketEntities(br, false);
+		if (classicMode_) parsePacketEntitiesClassic(br, false);
+		else parsePacketEntities(br, false);
 		break;
 	case SVC_DELTAPACKETENTITIES:
-		parsePacketEntities(br, true);
+		if (classicMode_) parsePacketEntitiesClassic(br, true);
+		else parsePacketEntities(br, true);
 		break;
 	case SVC_HLTV:
 		br.skip(8);
@@ -359,15 +406,23 @@ inline void DemoDecoder::parseClientData(BitReader& br) {
 	const DeltaTable& t = it->second;
 	cd_has_origin = cd_has_viewangles = cd_has_fov = false;
 	readDeltaFields(br, t, serverTime_, *this, &DemoDecoder::applyClientFieldThunk);
-	if (cd_has_origin && cd_has_viewangles) {
+	if (cd_has_origin) {
 		CameraSample c;
 		c.tick = curTick_;
 		c.time = curTime_;
 		std::memcpy(c.origin, cd_origin, sizeof(c.origin));
-		std::memcpy(c.viewangles, cd_viewangles, sizeof(c.viewangles));
 		c.fov = cd_has_fov ? cd_fov : 90;
-		c.source = 1;
-		cam_raw.push_back(c);
+		auto ve = entities_.find(viewEntity_);
+		if (cd_has_viewangles) {
+			std::memcpy(c.viewangles, cd_viewangles, sizeof(c.viewangles));
+			c.source = 1;
+			cam_raw.push_back(c);
+		} else if (ve != entities_.end() && ve->second.has_angles) {
+			// spectator camera: origin from clientdata, orientation from view entity
+			std::memcpy(c.viewangles, ve->second.angles, sizeof(c.viewangles));
+			c.source = 4;
+			cam_raw.push_back(c);
+		}
 	}
 }
 
@@ -532,6 +587,50 @@ inline void DemoDecoder::parsePacketEntities(BitReader& br, bool delta) {
 		else if (player) t = &requireTable("entity_state_player_t");
 		else t = &requireTable("entity_state_t");
 		readDeltaFields(br, *t, serverTime_, st, applyEntityField);
+		entities_[entnum] = st;
+	}
+}
+
+// Classic (proto 47) entity packet layout (MSG_ReadDeltaEntity):
+//   [13-bit entity number] loop, LAST_EDICT(0x1FFF) terminates
+//   [2-bit fRemoveType] [1+7 baseline] [1+2 entityType] fields...
+inline void DemoDecoder::parsePacketEntitiesClassic(BitReader& br, bool delta) {
+	br.skip(11); // entity count (+1), unused
+	if (delta) br.skip(8); // old packet sequence
+	while (true) {
+		if (br.bitsLeft() < 13) throw std::runtime_error("packetentities(c): truncated");
+		int entnum = (int)br.readUBits(13);
+		if (entnum == 0x1FFF) break; // LAST_EDICT
+
+		uint32_t rm = br.readUBits(2);
+		if (rm == 1) continue;  // removed from delta message, keep state
+		if (rm == 2) {          // removed from server
+			entities_.erase(entnum);
+			continue;
+		}
+		if (br.readBit()) br.skip(7); // baseline offset
+
+		bool custom = false;
+		if (br.readBit()) {
+			custom = (br.readUBits(2) & 1) != 0; // ENTITY_BEAM
+		}
+
+		bool player = entnum > 0 && entnum <= maxClients_;
+		EntityState st;
+		st.index = entnum;
+		{
+			auto itE = entities_.find(entnum);
+			if (itE != entities_.end()) st = itE->second;
+			else {
+				auto itB = baselines_.find(entnum);
+				if (itB != baselines_.end()) st = itB->second;
+			}
+		}
+		const DeltaTable* t = nullptr;
+		if (custom) t = &requireTable("custom_entity_state_t");
+		else if (player) t = &requireTable("entity_state_player_t");
+		else t = &requireTable("entity_state_t");
+		readDeltaFields(br, *t, serverTime_, st, applyEntityField, /*classicMode=*/true);
 		entities_[entnum] = st;
 	}
 }

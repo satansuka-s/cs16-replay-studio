@@ -9,6 +9,8 @@ core/extern/
 # test outputs
 core/tests/*.json
 core/tests/*.blend
+tests/*.json
+tests/*.blend
 demos/*.dem
 demos/*.json
 

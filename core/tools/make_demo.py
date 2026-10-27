@@ -175,7 +175,7 @@ def build_demo(n_ticks=30):
     loading.b(8, 8)
     loading.string("Synthetic test demo\n")
     loading.b(11, 8)                     # svc_serverdata (full GoldSrc layout)
-    loading.s(47, 32)                    # protocol
+    loading.s(48, 32)                    # protocol
     loading.s(1, 32)                     # servercount
     loading.s(0, 32)                     # checksum
     for _ in range(16):
@@ -245,7 +245,7 @@ def build_demo(n_ticks=30):
 def write_file(path, loading_payloads, play_actions):
     out = bytearray()
     out += b'HLDEMO\0\0'
-    out += struct.pack('<II', 5, 47)
+    out += struct.pack('<II', 5, 48)   # demo_protocol 5, net_protocol 48 (GoldSrc GS packets)
     out += b'de_test\0'.ljust(260, b'\0')
     out += b'cstrike\0'.ljust(260, b'\0')
     out += struct.pack('<iI', 0, 0)

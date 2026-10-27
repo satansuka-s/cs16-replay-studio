@@ -1,0 +1,2 @@
+map=de_dust2 proto=%!s(int=13881) frames=166215
+done: C:\dev\cs16db\core\tests\csgo_cut.json (112248 frames, 0 camera samples)

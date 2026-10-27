@@ -31,6 +31,16 @@ blender --background --python blender\blender_import.py -- --json out.json --out
 → 1625 кадров, игроки с origin/angles/velocity, .blend собран ✅
 ```
 
+Проверка на демке пользователя (demo-de_dust2-14_54_10.dem, 202 МБ, GOTV 2018):
+заголовок и первые 70% демки разбираются: **112 248 кадров, 20 сущностей/кадр**
+(имена, team, HP, origin, angles) → `.blend` собран ✅. В последних 27 МБ файла
+есть битое поле размера (0x6ADE6000 = 1.79 ГБ в LE), вызывавшее VirtualAlloc OOM:
+обходной приём — обрезать демку (битое поле в хвосте) и прогнать экстрактор:
+
+```
+python -c "open(r'out.dem','wb').write(open(r'demo.dem','rb').read(150_000_000))"
+```
+
 Версии экосистемы: демопарсер2 (0.34..0.42) потерял Source1 (`Source1DemoError`),
 go.dev и pacman-зеркала в этой сети режутся; MSYS2 (GitHub-архив) → pacman →
 `mingw-w64-x86_64-go 1.27.3` — сборка прошла именно так.

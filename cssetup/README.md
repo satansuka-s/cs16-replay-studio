@@ -33,9 +33,10 @@ mirv_streams record end; host_framerate 0
 FFMPEG-профили (`afxFFmpegYuv420p`) — если ffmpeg установлен установщиком HLAE.
 
 ## Демки CS:S в конвейер
-CS:S `.dem` (Source 1, netproto 6/7) парсится:
-- события (kills/раунды) — `source1/css_demo2json.py` (обёртка над demoinfogo),
-- позиции per-tick — TODO (открытого парсера плотного трекинга CS:S нет;
-  камеру кино-сцен делайте через HLAE BVH, карту — нашим импортёром, см. ниже),
-- карта — наш импортёр Source BSP (`make_replay_csgo.bat --game` или в
-  Blender: `blender/bsp_source_import.py`; текстуры: `core/tools/source1_tex.py`).
+CS:S `.dem` (Source 1, HL2DEMO) разбирается полностью:
+- **позиции всех игроков per tick** — наш `css_extract.exe` на базе
+  css-demo-parser (sockfish/bamtna, MIT): origin/angles/velocity/team/health
+  + камера POV (source 5) + kill/round события; сборка —
+  `source1\build_css_extract.bat`, вызов — `source1\css_demo2json.py`.
+- режиссёрская камера кино-сцен — через HLAE BVH (см. выше),
+- карта — наш импортёр Source BSP или SourceIO 5.5.4+ (Blender 5).

@@ -3,7 +3,9 @@ rem ============================================================
 rem  CS:GO / CS:S (Source 1) -> Blender: one-button replay
 rem  map (own Source BSP importer + VMT/VTF textures) + players +
 rem  camera + kill/round edit markers from the demo.
-rem  Usage: make_replay_csgo.bat [demo.dem] [followUserID]
+rem  Usage: make_replay_csgo.bat [demo.dem] [followUserID] [--sio]
+rem    --sio  - map via SourceIO 5.5.4 (static props/models, needs the
+rem            addon installed in Blender; slower but full scene)
 rem ============================================================
 setlocal EnableExtensions
 set ROOT=%~dp0..
@@ -26,6 +28,8 @@ if not exist "%DEMO%" (
     exit /b 1
 )
 set FOLLOW=%2
+set USE_SIO=0
+if /i "%3"=="--sio" set USE_SIO=1
 
 set WORK=%ROOT%\core\tests\csgo_work
 set EXE=%ROOT%\source1\go_extract\csgo_extract.exe
@@ -54,12 +58,28 @@ mkdir "%WORK%\map_tex" 2>nul
 if errorlevel 1 exit /b 1
 
 echo === [3/4] build Blender scene (map + players + camera + markers) ===
-"%BLENDER%" --background --python "%ROOT%\blender\replay_import.py" -- ^
-    "--demo-json=%WORK%\demo.json" ^
-    "--game=%CSGO_DIR%" ^
-    "--out=%ROOT%\demos\csgo_replay.blend" ^
-    "--tex-dir=%WORK%\map_tex" ^
-    "--cam-spline"
+if "%USE_SIO%"=="1" (
+    echo   map via SourceIO 5.5.4+ : %MAPNAME%.bsp
+    "%BLENDER%" --background --python "%ROOT%\blender\sourceio_map_import.py" -- ^
+        "--bsp=%CSGO_DIR%\csgo\maps\%MAPNAME%.bsp" ^
+        "--out=%WORK%\sio_map.blend"
+    if errorlevel 1 exit /b 1
+    "%BLENDER%" --background --python "%ROOT%\blender\replay_import.py" -- ^
+        "--demo-json=%WORK%\demo.json" ^
+        "--game=%CSGO_DIR%" ^
+        "--out=%ROOT%\demos\csgo_replay.blend" ^
+        "--tex-dir=%WORK%\map_tex" ^
+        "--load-blend=%WORK%\sio_map.blend" ^
+        "--no-map" ^
+        "--cam-spline"
+) else (
+    "%BLENDER%" --background --python "%ROOT%\blender\replay_import.py" -- ^
+        "--demo-json=%WORK%\demo.json" ^
+        "--game=%CSGO_DIR%" ^
+        "--out=%ROOT%\demos\csgo_replay.blend" ^
+        "--tex-dir=%WORK%\map_tex" ^
+        "--cam-spline"
+)
 if errorlevel 1 exit /b 1
 
 echo === [4/4] done ===

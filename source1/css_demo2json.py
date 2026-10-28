@@ -1,23 +1,17 @@
 #!/usr/bin/env python3
 """Counter-Strike: Source (CSS, Source 1) demo -> cs16db JSON.
 
-CSS demos are Source-1 .dem files. The most mature reader is Valve's
-demoinfogo (C++): https://github.com/ValveSoftware/csgo-demoinfogo (build with
-CMake, or use a community binary). This script is a thin wrapper around:
+Primary path: our own css_extract.exe (built on css-demo-parser, sockfish/
+bamtna) - decodes HL2DEMO demos (demo protocol 3, net protocol 24, 14-23
+handled) with full per-tick PlayerTracker output: origin/eye angles/velocity/
+team/health per player per tick, camera (source 5) and kill/round events.
 
-  demoinfogo demo.dem -X -stdout   (JSON-ish dump of demo events)
+  pip-install-free; build once with source1\\build_css_extract.bat
 
-and converts the output to our common schema (frames with positions). Because
-demoinfogo emits *events* (not per-tick snapshots), the wrapper synthesizes
-positions from `player_connect`, `player_team`, `player_death`, `round_start`,
-`weapon_fire` etc. For dense per-tick data on CSS the recommended setup is:
-
-  - record/publish with HLAE (advancedfx) camera export (BVH) for the camera,
-  - use demoinfogo JSON for kill/round/weapon events,
-  - import map+models via SourceIO / Crowbar (Source MDL) and filter events.
+Fallback: demoinfogo event dump (kills/rounds only, no per-tick positions).
 
 Usage:
-  python css_demo2json.py demo.dem out.json [--demoinfogo path/to/demoinfogo.exe]
+  python css_demo2json.py demo.dem out.json [--follow N] [--exe path\\css_extract.exe]
 """
 import json
 import os
@@ -28,17 +22,36 @@ import sys
 def main():
     args = sys.argv[1:]
     src = out = exe = None
+    follow = 0
     for a in args:
-        if a.startswith('--demoinfogo='): exe = a.split('=', 1)[1]
-        elif a.startswith('--out='): out = a.split('=', 1)[1]
-        elif src is None: src = a
+        if a.startswith('--exe='):
+            exe = a.split('=', 1)[1]
+        elif a.startswith('--out='):
+            out = a.split('=', 1)[1]
+        elif a.startswith('--follow='):
+            follow = int(a.split('=', 1)[1])
+        elif src is None:
+            src = a
     if not src:
         print(__doc__)
         return 2
     if not out:
         out = 'css_out.json'
+    root = os.path.dirname(os.path.abspath(__file__))
     if not exe:
-        exe = 'demoinfogo'
+        cand = os.path.join(root, 'css_extract', 'build', 'css_extract.exe')
+        if os.path.exists(cand):
+            exe = cand
+    if exe and os.path.exists(exe):
+        cmd = [exe, src, out]
+        if follow > 0:
+            cmd += ['--follow', str(follow)]
+        r = subprocess.call(cmd)
+        return r
+
+    # ---- fallback: demoinfogo events ----
+    exe = exe or 'demoinfogo'
+    print('[info] css_extract.exe not found - falling back to demoinfogo events')
     try:
         res = subprocess.run([exe, src, '-X', '-stdout'], capture_output=True, timeout=300)
         text = res.stdout.decode('utf-8', 'replace')
@@ -75,7 +88,8 @@ def main():
         'tick_interval': 0,
         'max_clients': 0,
         'frames_parsed': len(frames),
-        'notes': 'CSS (Source 1) via demoinfogo events; per-tick positions need a fuller reader (TODO); camera via HLAE BVH',
+        'notes': 'CSS via css-demo-parser (css_extract): per-tick positions; '
+                 'fallback path = demoinfogo events only',
         'camera': camera,
         'frames': frames,
     }

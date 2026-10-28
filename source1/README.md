@@ -12,12 +12,16 @@ Z-up** — поэтому сгенерированный JSON сразу при�
 |---|---|---|---|
 | Парсинг демок CS:GO | **demoparser2** (PyPI, Rust-core) | Живой, v0.42.1, де-факто стандарт | `pip install demoparser2` |
 | Парсинг демок CS:GO | **awpy** (Python-обёртка, аналитика) | Живой | `pip install awpy` |
-| Парсинг демок CSS | **demoinfogo** (Valve, C++) | Устаревший, но рабочий | `git clone https://github.com/ValveSoftware/csgo-demoinfogo` + CMake |
+| Парсинг демок СSS (per-tick) | **css-demo-parser** (sockfish/bamtna, C++20) | Свежий, 10.2026; наш css_extract собран | `source1\build_css_extract.bat` (локально: core/extern) |
 | Камера всех Source | **HLAE** (advancedfx) | Живой | hlae.org; экспорт BVH + afx-скрипты |
-| Карты (BSP) Blender | **SourceIO** (REDxEYE) | Живой, 10.2026, Blender 4.0+ | Аддон из релизов GitHub: REDxEYE/SourceIO |
+| Карты (BSP) Blender | **SourceIO** (REDxEYE) | 5.5.4+, **поддержка Blender 5.0** (10.2026) | Аддон из релизов GitHub: REDxEYE/SourceIO |
 | Карты (BSP) Max | **Wall Worm** (BSPSource → VMF) | Живой | wallworm.com |
 | Модели MDL | **Crowbar** | Живой | zeqmacaw.github.io |
 | Модели/карты Blender | **Blender Source Tools** (Artfunkel) | Живой, 11.2025 | GitHub: Artfunkel/BlenderSourceTools |
+
+Дополнительно: **demoscope** (programmer1o1, Rust, 10.2026) — быстрый парсер
+и 3D-визуализатор демок Source2/Source/GoldSrc/Quake (в т.ч. CS:S) — удобен
+для инспекции демок, но в конвейер не встроен.
 
 ## Конвейер CS:GO — статус парсинга (проверено 10.2026)
 
@@ -33,8 +37,10 @@ blender --background --python blender\blender_import.py -- --json out.json --out
 
 ## «Одна кнопка» (CS:GO / CS:S) + своя карта + монтажная сетка событий
 
-`source1/make_replay_csgo.bat [demo.dem] [followUserID]` — полный цикл без
-ручных шагов (как `make_replay.bat` для CS 1.6):
+`source1/make_replay_csgo.bat [demo.dem] [followUserID] [--sio]` — полный цикл без
+ручных шагов (как `make_replay.bat` для CS 1.6). Третий аргумент `--sio`
+включает импорт карты через SourceIO 5.5.4+ (пропы/модели/мультибленд;
+аддон ставится в Blender: Preferences → Get Extensions → Install from Disk):
 
 ```
 === [1/4] csgo_extract  демка → JSON: игроки (origin/angles/velocity/health/team)
@@ -162,20 +168,30 @@ host_timescale 1
 
 ## Concises CS:S
 
-Полноценного per-tick позиционного парсера под CSS нет в публичном доступе
-(демки CSS = тот же Source-1 .dem, но demoparser2 их не поддерживает).
-Состав рабочего конвейера:
+Полный per-tick конвейер готов: `css_extract.exe` (на базе css-demo-parser,
+см. выше) + `css_demo2json.py`. Для события/камеры модельные возможности:
 
-1. **События**: `demoinfogo demo.dem -X -stdout` — JSON событий
-   (`source1/css_demo2json.py` — обёртка в наш JSON).
-2. **Камера**: HLAE (поддерживает CSS только в режиме экранной записи:
+1. **События/позиции**: css_extract → общий JSON (всё, что нужно Blender/AE).
+2. **Режиссёрская камера**: HLAE (CS:S — только экранная запись:
    `mirv_streams record screen`, см. `cssetup\`) — BVH → `--bvh` в blender_import.
-3. **Карта**: наш импортёр Source BSP (CS:S тоже v20!) — `bsp_source_import.py`.
+3. **Карта**: свой импортёр Source BSP (CS:S v20) или SourceIO 5.5.4+ (Blender 5).
 4. **Модели**: Crowbar (Source MDL), импорт как обычно.
 
-Честно: плотный трекинг позиций для CSS — открытая TODO; если найдутся
-публичные Python-парсеры (или демка CSS для reverse-а) — добавлю
-`css_demo2json.py` полный per-tick режим.
+## CS:S: per-tick трекинг — решено (css_extract + css-demo-parser)
+
+Найден действующий открытый парсер демок CS:S (sockfish/bamtna
+`css-demo-parser`, C++20, MIT): полный разбор HL2DEMO (demo proto 3, net
+proto 24; 14-23 учтены), клиентские и SourceTV-демки, per-tick
+`PlayerTracker` (origin/eye angles/velocity/team/health/life state).
+Собран собственный `source1/css_extract/build/css_extract.exe`
+(исходники: `source1/css_extract.cpp`, сборка `build_css_extract.bat`),
+вывод — тот же JSON, что у csgo_extract (frames/camera source 5/events
+kill+round). `css_demo2json.py` автоматически использует css_extract
+(фоллбэк — demoinfogo-события).
+
+Проверка на живой демке — после установки CS:S (записать свою:
+`record test` в консоли, см. `cssetup\`; затем
+`python source1\css_demo2json.py test.dem out.json`).
 
 ## CS2 (Source 2)
 

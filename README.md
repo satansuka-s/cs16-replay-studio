@@ -37,6 +37,8 @@
 | `source1/go_extract/` | `csgo_extract.exe` (Go + demoinfocs v3): игроки/камера/события CS:GO |
 | `csgosetup/` | Кино-набор CS:GO: movie.cfg + пресет HLAE `mirv_streams` (normal/depth-EXR/matte) |
 | `cssetup/` | Кино-набор CS:S: movie.cfg + экранная запись HLAE (`mirv_streams record screen`) |
+| `source1/css_extract/` | CS:S демки → JSON: per-tick позиции (css-demo-parser, сборка `build_css_extract.bat`) |
+| `blender/sourceio_map_import.py` | Импорт карты через SourceIO 5.5.4+ (пропы/модели; Blender 5 поддерживается) |
 | `demos/` | Сюда класть `.dem` |
 
 ## 1. Сборка ядра (Windows)

@@ -27,3 +27,6 @@ cs16setup/staging/
 # python caches
 __pycache__/
 *.pyc
+
+# css_extract build (fetchcontent clones cssdemo here)
+source1/css_extract/build/

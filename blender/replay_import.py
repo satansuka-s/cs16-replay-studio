@@ -40,6 +40,10 @@ def parse_args(argv):
                    help='add polyline camera path (manual smooth later)')
     p.add_argument('--no-sky', action='store_true',
                    help='skip the gfx/env skybox, use a plain background colour')
+    p.add_argument('--no-map', action='store_true',
+                   help='do not import the map (e.g. when using SourceIO)')
+    p.add_argument('--load-blend', default='',
+                   help='open an existing .blend (e.g. SourceIO map) and build on top')
     return p.parse_args(argv)
 
 
@@ -261,6 +265,9 @@ def main():
 
     with open(args.demo_json, encoding='utf-8') as f:
         demo = json.load(f)
+    if args.load_blend and os.path.exists(args.load_blend):
+        bpy.ops.wm.open_mainfile(filepath=os.path.abspath(args.load_blend))
+        print('[load] existing blend:', args.load_blend)
     mapname = demo.get('map', '').replace('\\', '/').split('/')[-1]
     fps = args.fps
     scale = args.scale
@@ -279,7 +286,7 @@ def main():
             bsp_path = cand
             break
     is_source = False
-    if bsp_path:
+    if bsp_path and not args.no_map:
         with open(bsp_path, 'rb') as fh:
             bsp_ver = struct.unpack_from('<i', fh.read(8), 4)[0]
         is_source = 17 <= bsp_ver <= 21
@@ -292,8 +299,9 @@ def main():
             for mat in list(bpy.data.materials):
                 bsp_import.load_texture_into_material(mat.name, tex_out)
     else:
-        print('[map] BSP not found for', mapname,
-              '- CS:GO maps need SourceIO in Blender 4.x; players/camera still work')
+        if not args.no_map:
+            print('[map] BSP not found for', mapname,
+                  '- CS:GO maps need SourceIO in Blender 4.x; players/camera still work')
 
     # ---------- world + skybox ----------
     world = bpy.data.worlds.new('World')

@@ -9,6 +9,10 @@
                                                 └──> 3ds Max:  max_import.py / max_import.ms
 ```
 
+**Кино-сборка для записи демок прямо в игре** (MetaMod+AMXX, кнопки записи/
+камера/slow-mo/боты, HLTV-рекордер): см. `cs16setup\README.md` →
+`cs16setup\install_demo_toolkit.bat` (ставится в обе установки CS 1.6).
+
 ## Состав
 
 | Путь | Что это |

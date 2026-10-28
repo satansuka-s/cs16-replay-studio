@@ -19,3 +19,7 @@ demos/*.json
 
 # scratch
 core/tools/_dump*.txt
+
+# cs16setup downloads/staging (re-downloadable)
+cs16setup/downloads/
+cs16setup/staging/

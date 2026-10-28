@@ -37,6 +37,15 @@ type entFrame struct {
 	Entities []entity `json:"entities"`
 }
 
+type demEvent struct {
+	Tick    int     `json:"tick"`
+	Time    float64 `json:"time"`
+	Type    string  `json:"type"`
+	Subject int     `json:"subject,omitempty"`
+	Target  int     `json:"target,omitempty"`
+	Origin  []float64 `json:"origin,omitempty"`
+}
+
 type entity struct {
 	Index    int       `json:"index"`
 	Player   bool      `json:"player"`
@@ -58,6 +67,7 @@ type doc struct {
 	Notes         string     `json:"notes"`
 	Camera        []camSample `json:"camera"`
 	Frames        []entFrame `json:"frames"`
+	Events        []demEvent `json:"events"`
 }
 
 func main() {
@@ -109,6 +119,7 @@ func main() {
 	}
 
 	lastTick := int(0)
+	autoID := 0 // auto-follow: first T/CT player seen (camera for everyone)
 	p.RegisterEventHandler(func(e events.FrameDone) {
 		defer func() {
 			if r := recover(); r != nil {
@@ -147,12 +158,43 @@ func main() {
 					Tick: int(tick), Time: float64(tick) / float64(d.TickRate),
 					Origin: e.Origin, ViewAngles: e.Angles, FOV: 90, Source: 5,
 				})
+			} else if *follow <= 0 && autoID == 0 && e.Team != 0 && e.Team != int(common.TeamSpectators) {
+				autoID = pl.UserID
+			}
+			if autoID > 0 && pl.UserID == autoID && len(e.Origin) == 3 && len(e.Angles) == 3 {
+				d.Camera = append(d.Camera, camSample{
+					Tick: int(tick), Time: float64(tick) / float64(d.TickRate),
+					Origin: e.Origin, ViewAngles: e.Angles, FOV: 90, Source: 5,
+				})
 			}
 		}
 		if len(frame.Entities) > 0 {
 			d.Frames = append(d.Frames, frame)
 			d.FramesParsed++
 		}
+	})
+
+	// ---- edit-marker events: kills and round starts ----
+	p.RegisterEventHandler(func(e events.Kill) {
+		gs := p.GameState()
+		tick := gs.IngameTick()
+		ev := demEvent{Tick: int(tick), Time: float64(tick) / float64(d.TickRate), Type: "kill"}
+		if e.Killer != nil {
+			ev.Subject = e.Killer.UserID
+			pos := e.Killer.Position()
+			ev.Origin = []float64{round2(pos.X), round2(pos.Y), round2(pos.Z)}
+		}
+		if e.Victim != nil {
+			ev.Target = e.Victim.UserID
+		}
+		d.Events = append(d.Events, ev)
+	})
+	p.RegisterEventHandler(func(e events.RoundStart) {
+		gs := p.GameState()
+		tick := gs.IngameTick()
+		d.Events = append(d.Events, demEvent{
+			Tick: int(tick), Time: float64(tick) / float64(d.TickRate), Type: "round",
+		})
 	})
 
 	if err := p.ParseToEnd(); err != nil {
@@ -163,7 +205,7 @@ func main() {
 	if err := os.WriteFile(outPath, buf, 0o644); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("done: %s (%d frames, %d camera samples)\n", outPath, d.FramesParsed, len(d.Camera))
+	fmt.Printf("done: %s (%d frames, %d camera samples, %d events)\n", outPath, d.FramesParsed, len(d.Camera), len(d.Events))
 }
 
 func round2(v float64) float64 {

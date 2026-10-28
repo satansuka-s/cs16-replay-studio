@@ -31,6 +31,30 @@ blender --background --python blender\blender_import.py -- --json out.json --out
 → 1625 кадров, игроки с origin/angles/velocity, .blend собран ✅
 ```
 
+## «Одна кнопка» (CS:GO) + монтажная сетка событий
+
+`source1/make_replay_csgo.bat [demo.dem] [followUserID]` — полный цикл без
+ручных шагов (как `make_replay.bat` для CS 1.6):
+
+```
+=== [1/3] csgo_extract  демка → JSON: игроки (origin/angles/velocity/health/team)
+                         + авто-камера (первый активный игрок, или --follow N)
+                         + события kill / round (монтажная сетка)
+=== [2/3] Blender       сцена: плейсхолдеры игроков (кубы по росту, с ключами),
+                         камера-сплайн, маркеры kill (красные) / round (синие)
+                         / sound (оранжевые) + маячки-сферы у позиций событий
+=== [3/3] demos\csgo_replay.blend ✅
+```
+
+События в JSON (`"events"`): `type: kill` (subject/target/origin убийцы),
+`type: round` (тик/время старта раунда). Те же маркеры пишутся в After Effects
+через `ae/import_camera.jsx` — готовая сетка для монтажа: раунды = секции,
+килы = точки смены плана.
+
+Карта в сцену не входит автономно: BSP CS:GO требует SourceIO, который не
+грузится в Blender 5.x (см. ниже) — карту импортируйте в Blender 4.x и
+сохраните в тот же .blend. Игроки/камера/события от карты не зависят.
+
 Проверка на демке пользователя (demo-de_dust2-14_54_10.dem, 202 МБ, GOTV 2018):
 заголовок и первые 70% демки разбираются: **112 248 кадров, 20 сущностей/кадр**
 (имена, team, HP, origin, angles) → `.blend` собран ✅. В последних 27 МБ файла
@@ -52,10 +76,12 @@ go.dev и pacman-зеркала в этой сети режутся; MSYS2 (GitH
 
 ```
 demo.dem ── source1/go_extract/csgo_extract.exe (Go, demoinfocs v3) ──> json
-    └──> blender_import.py / max_import.py (общая ветка, тот же JSON)
-карта:     SourceIO (Blender) / BSPSource→VMF→Wall Worm (Max)
-модели:    Crowbar (MDL→SMD), импорт как обычно
-камера:    --follow USERID (наш конвертер) или HLAE BVH
+    ├──> replay_import.py / blender_import.py / max_import.py (общий JSON)
+    └──> "events": kill/round → маркеры Blender + AE (монтажная сетка)
+карта:     SourceIO **только Blender 4.x** (в 5.x аддон не грузится:
+           "No module named 'SourceIO'") / BSPSource→VMF→Wall Worm (Max)
+модели:    Crowbar (MDL→SMD), импорт как обычно; плейсхолдеры — автоматически
+камера:    авто-слежение за первым игроком или --follow USERID; HLAE BVH
 CS2:       тот же готовый конвейер, но через demoparser2 (csgo_demo2json.py)
 ```
 

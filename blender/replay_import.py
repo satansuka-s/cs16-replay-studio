@@ -77,15 +77,21 @@ def main():
     if not camera:
         print('[cam] no camera track in JSON')
 
-    # ---------- map ----------
-    bsp_path = os.path.join(args.game, 'cstrike', 'maps', mapname + '.bsp')
+    # ---------- map (auto-detect mod dir: CS 1.6 cstrike / CS:GO csgo) ----------
+    bsp_path = ''
+    for mod in ('csgo', 'cstrike'):
+        cand = os.path.join(args.game, mod, 'maps', mapname + '.bsp')
+        if os.path.exists(cand):
+            bsp_path = cand
+            break
     tex_out = args.tex_dir or os.path.join(os.path.dirname(args.out), 'map_tex')
-    if os.path.exists(bsp_path):
+    if bsp_path:
         bsp_import.import_bsp(bsp_path, 'map_' + mapname, tex_dir=tex_out)
         for mat in list(bpy.data.materials):
             bsp_import.load_texture_into_material(mat.name, tex_out)
     else:
-        print(f'[map] not found: {bsp_path}')
+        print(f'[map] not found: {bsp_path or os.path.join(args.game, "csgo", "maps", mapname + ".bsp")}')
+        print('      CS:GO maps need SourceIO (Blender 4.x) — players/camera/markers still work')
 
     # ---------- model palette ----------
     model_dirs = []
@@ -137,6 +143,21 @@ def main():
             print(f'[player] {idx} -> {os.path.basename(md)} ({len(actions)} actions)')
 
     # ---------- keyframes + NLA ----------
+    # placeholders for players without a model (CS:GO: models need SourceIO) — cubes with team color
+    if frames and not players_seen:
+        seen_idx = set()
+        for f in frames:
+            for e in f.get('entities', []):
+                if e.get('player'):
+                    seen_idx.add(e['index'])
+        for idx in sorted(seen_idx):
+            ph = bpy.data.objects.new('player_%d' % idx, None)
+            ph.empty_display_type = 'CUBE'
+            ph.empty_display_size = 72.0 * scale  # ~1.8 m player height
+            bpy.context.collection.objects.link(ph)
+            players_seen[idx] = {'object': ph, 'file': '', 'seqs': {}, 'manifest': None}
+        print(f'[players] {len(seen_idx)} placeholders (no SMD models; import CS:GO models via SourceIO)')
+
     for f in frames:
         t = f['tick'] / tick_rate
         fr = t * fps
@@ -164,17 +185,28 @@ def main():
     if players_seen and frames:
         print('[nla] player actions available; strips can be laid via --seq-map in blender_import')
 
-    # ---------- edit markers from sound events ----------
+    # ---------- edit markers: sound/kill/round events ----------
     def frame_t(tick):
         return (tick / tick_rate) * fps
 
+    ev_colors = {'sound': (1.0, 0.7, 0.2), 'kill': (1.0, 0.2, 0.15), 'round': (0.35, 0.8, 1.0)}
     for ev in demo.get('events', []):
         fr = frame_t(ev['tick'])
-        mk = bpy.context.scene.timeline_markers.new('snd_%d' % ev['index'], frame=int(fr))
-        mk.color = (1.0, 0.7, 0.2)
+        etype = ev.get('type', 'sound')
+        if etype == 'round':
+            name = 'round_%d' % ev['tick']
+        elif etype == 'kill':
+            name = 'kill_%d_%d' % (ev.get('subject', 0), ev.get('target', 0))
+        else:
+            name = 'snd_%d' % ev.get('index', ev['tick'])
+        mk = bpy.context.scene.timeline_markers.new(name, frame=int(fr))
+        try:
+            mk.color = ev_colors.get(etype, (0.8, 0.8, 0.8))
+        except AttributeError:
+            pass  # Blender < some version: no marker colors
         o = ev.get('origin')
         if o:
-            beacon = bpy.data.objects.new('evt_%d' % ev['tick'], None)
+            beacon = bpy.data.objects.new('evt_%d_%s' % (ev['tick'], etype), None)
             bpy.context.collection.objects.link(beacon)
             beacon.location = Vector((o[0] * scale, o[1] * scale, o[2] * scale))
             beacon.empty_display_size = 1.0

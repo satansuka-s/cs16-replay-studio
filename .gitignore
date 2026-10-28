@@ -9,6 +9,9 @@ core/extern/
 # test outputs
 core/tests/*.json
 core/tests/*.blend
+core/tests/csgo_work/
+core/tests/sio_*.txt
+core/tests/sourceio.zip
 tests/*.json
 tests/*.blend
 demos/*.dem

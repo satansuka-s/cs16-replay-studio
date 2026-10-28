@@ -19,9 +19,9 @@ set "GAME2=D:\CS 1.6 GoldClient"
 
 set "MM_URL=https://github.com/Bots-United/metamod-p/releases/download/v1.21p109/metamod-p-v1.21p109-win32.tar.xz"
 set "MM_FILE=metamod.tar.xz"
-set "AMXX_URL=https://github.com/alliedmodders/amxmodx/releases/download/1.9.0.5303/amxmodx-1.9.0-git5303-base-windows.zip"
+set "AMXX_URL=https://github.com/alliedmodders/amxmodx/releases/download/1.10.0.5487/amxmodx-1.10.0-git5487-base-windows.zip"
 set "AMXX_BASE=amxx_base.zip"
-set "AMXX_CS_URL=https://github.com/alliedmodders/amxmodx/releases/download/1.9.0.5303/amxmodx-1.9.0-git5303-cstrike-windows.zip"
+set "AMXX_CS_URL=https://github.com/alliedmodders/amxmodx/releases/download/1.10.0.5487/amxmodx-1.10.0-git5487-cstrike-windows.zip"
 set "AMXX_CS=amxx_cs.zip"
 
 mkdir "%DOWN%" 2>nul
@@ -38,16 +38,13 @@ if not exist "%DOWN%\%AMXX_CS%" (
     curl.exe -L -s -o "%DOWN%\%AMXX_CS%" "%AMXX_CS_URL%" || (echo [error] amxx cstrike download failed & exit /b 1)
 )
 
-echo === [1/4] unpack to staging ===
-if not exist "%STAGE%\mm\addons\metamod\dlls\metamod.dll" (
-    python -c "import lzma,tarfile,os,sys; src=r'%DOWN%\%MM_FILE%'; dst=r'%STAGE%\mm'; os.makedirs(dst,exist_ok=True); f=lzma.open(src); t=tarfile.open(fileobj=f); t.extractall(dst); print('metamod unpacked')" || (echo [error] metamod unpack failed & exit /b 1)
-)
-if not exist "%STAGE%\ab\addons\amxmodx" (
-    powershell -NoProfile -Command "Expand-Archive -Path '%DOWN%\%AMXX_BASE%' -DestinationPath '%STAGE%\ab' -Force" || (echo [error] amxx base unpack failed & exit /b 1)
-)
-if not exist "%STAGE%\acs\addons\amxmodx\modules\cstrike_amxx.dll" (
-    powershell -NoProfile -Command "Expand-Archive -Path '%DOWN%\%AMXX_CS%' -DestinationPath '%STAGE%\acs' -Force" || (echo [error] amxx cs unpack failed & exit /b 1)
-)
+echo === [1/4] unpack to staging (fresh) ===
+if exist "%STAGE%\mm" rd /s /q "%STAGE%\mm"
+if exist "%STAGE%\ab" rd /s /q "%STAGE%\ab"
+if exist "%STAGE%\acs" rd /s /q "%STAGE%\acs"
+python -c "import lzma,tarfile,os; src=r'%DOWN%\%MM_FILE%'; dst=r'%STAGE%\mm'; os.makedirs(dst,exist_ok=True); f=lzma.open(src); t=tarfile.open(fileobj=f); t.extractall(dst); print('metamod unpacked')" || (echo [error] metamod unpack failed & exit /b 1)
+powershell -NoProfile -Command "Expand-Archive -Path '%DOWN%\%AMXX_BASE%' -DestinationPath '%STAGE%\ab' -Force" || (echo [error] amxx base unpack failed & exit /b 1)
+powershell -NoProfile -Command "Expand-Archive -Path '%DOWN%\%AMXX_CS%' -DestinationPath '%STAGE%\acs' -Force" || (echo [error] amxx cs unpack failed & exit /b 1)
 if not exist "%STAGE%\mm\addons\metamod\dlls\metamod.dll" (echo [error] staging incomplete - rerun & exit /b 1)
 
 rem ---------- game dirs ----------
@@ -78,13 +75,13 @@ xcopy /e /i /y /q "%STAGE%\mm\addons\metamod" "%CR%\addons\metamod" >nul 2>&1
 xcopy /e /i /y /q "%STAGE%\ab\addons\amxmodx" "%CR%\addons\amxmodx" >nul 2>&1
 xcopy /e /i /y /q "%STAGE%\acs\addons\amxmodx" "%CR%\addons\amxmodx" >nul 2>&1
 
-rem ---- metamod config.ini: keep original game dll (csbot.dll keeps ZBot bots) ----
+rem ---- metamod config.ini: unquoted paths, forward slashes (metamod-p parser!) ----
 if exist "%CR%\dlls\csbot.dll" (
-    echo gamedll "dlls\csbot.dll"> "%CR%\addons\metamod\config.ini"
+    echo gamedll dlls/csbot.dll> "%CR%\addons\metamod\config.ini"
 ) else (
-    echo gamedll "dlls\mp.dll"> "%CR%\addons\metamod\config.ini"
+    echo gamedll dlls/mp.dll> "%CR%\addons\metamod\config.ini"
 )
-echo gamedll_linux "dlls/cs_i386.so">> "%CR%\addons\metamod\config.ini"
+echo gamedll_linux dlls/cs_i386.so>> "%CR%\addons\metamod\config.ini"
 
 rem ---- metamod plugins.ini: load amxmodx ----
 if not exist "%CR%\addons\metamod\plugins.ini" (
@@ -96,6 +93,16 @@ if not exist "%CR%\addons\metamod\plugins.ini" (
 
 rem ---- liblist.gam: point gamedll at metamod ----
 powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%patch_liblist.ps1" -Path "%CR%\liblist.gam" || (echo [error] liblist.gam patch failed & goto :eof)
+
+rem ---- demo_toolkit plugin (record names, edit log, spots) ----
+if exist "%ROOT%plugin\demo_toolkit.amxx" (
+    copy /y "%ROOT%plugin\demo_toolkit.amxx" "%CR%\addons\amxmodx\plugins\demo_toolkit.amxx" >nul 2>&1
+    findstr /C:"demo_toolkit.amxx" "%CR%\addons\amxmodx\configs\plugins.ini" >nul 2>&1 || echo demo_toolkit.amxx>> "%CR%\addons\amxmodx\configs\plugins.ini"
+    if exist "%ROOT%plugin\demo_toolkit.sma" copy /y "%ROOT%plugin\demo_toolkit.sma" "%CR%\addons\amxmodx\scripting\demo_toolkit.sma" >nul 2>&1
+    echo [ok] demo_toolkit.amxx installed
+) else (
+    echo [warn] plugin\demo_toolkit.amxx missing - build with plugin\build_plugin.bat
+)
 
 rem ---- movie.cfg + autoexec wiring ----
 copy /y "%ROOT%movie.cfg" "%CR%\movie.cfg" >nul 2>&1
@@ -112,6 +119,7 @@ goto :eof
 echo.
 echo === [3/4] done ===
 echo   Plugins: cstrike\addons\metamod + addons\amxmodx ^(AMX Mod X^)
+echo   Plugin:  addons\amxmodx\plugins\demo_toolkit.amxx ^(F6/F7, /rec, /stop, events^)
 echo   Kit:     cstrike\movie.cfg ^(F4-F11, see file header^)
 echo   Wire:    autoexec.cfg exec movie.cfg
 echo   Backups: addons_backup_*, liblist.gam.bak, autoexec.cfg.bak

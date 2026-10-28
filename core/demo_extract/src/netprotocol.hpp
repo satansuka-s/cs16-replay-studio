@@ -21,24 +21,26 @@ enum Svc {
 	SVC_UPDATEUSERINFO = 13,
 	SVC_DELTATABLE = 14,
 	SVC_CLIENTDATA = 15,
-	SVC_RESOURCE = 16,
+	SVC_STOPSOUND = 16,     // GoldSrc: [word] entnum<<3 | channel
 	SVC_PINGS = 17,
-	SVC_PARTICLE = 18,
-	SVC_RESTORESOUND = 19,
+	SVC_PARTICLE = 18,      // fixed 11 bytes in GoldSrc
+	SVC_DAMAGE = 19,        // no payload (engine handles it in client.dll)
 	SVC_SPAWNSTATIC = 20,
 	SVC_EVENT_RELIABLE = 21,
 	SVC_SPAWNBASELINE = 22,
-	SVC_SPAWNSTATICSOUND = 29, // GoldSrc spawn static sound
 	SVC_TEMP_ENTITY = 23,
 	SVC_SETPAUSE = 24,	SVC_SIGNONNUM = 25,
 	SVC_CENTERPRINT = 26,
+	SVC_KILLEDMONSTER = 27, // no payload
+	SVC_FOUNDSECRET = 28,   // no payload
+	SVC_SPAWNSTATICSOUND = 29, // [14 bytes]
 	SVC_INTERMISSION = 30,
 	SVC_FINALE = 31,
 	SVC_CDTRACK = 32,
 	SVC_RESTORE = 33,
 	SVC_CUTSCENE = 34,
 	SVC_WEAPONANIM = 35,
-	SVC_BSPDECAL = 36,
+	SVC_DECALNAME = 36,     // GoldSrc [byte][string]; in newer protocols "svc_bspdecal"
 	SVC_ROOMTYPE = 37,
 	SVC_ADDANGLE = 38,
 	SVC_USERMESSAGE = 39,
@@ -58,7 +60,11 @@ enum Svc {
 	SVC_VOICEDATA = 53,
 	SVC_SENDEXTRAINFO = 54,
 	SVC_TIMESCALE = 55,
-	SVC_LASTMSG = 59, // user messages start at 60 (id = op - 59)
+	SVC_RESOURCELOCATION = 56,
+	SVC_QUERYCVARVALUE = 57,
+	SVC_QUERYCVARVALUE2 = 58,
+	SVC_EXEC = 59,
+	SVC_LASTMSG = 59, // user messages start at 60
 };
 
 // delta field type flags (net_encode.c)

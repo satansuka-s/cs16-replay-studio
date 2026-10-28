@@ -181,7 +181,10 @@ def attach_texture(obj, material_name, tga_path):
         return
     mat = bpy.data.materials.get(material_name) or bpy.data.materials.new(material_name)
     mat.use_nodes = True
-    bsdf = mat.node_tree.nodes.get('Principled BSDF')
+    # localized UIs rename nodes; look up by type instead of name
+    bsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+    if not bsdf:
+        return
     img = bpy.data.images.load(tga_path)
     tex = mat.node_tree.nodes.new('ShaderNodeTexImage')
     tex.image = img

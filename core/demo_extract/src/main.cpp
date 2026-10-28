@@ -41,6 +41,15 @@ static bool run(const std::string& demopath, const std::string& outpath, bool ca
 	int framesParsed = 0;
 	int camFrames = 0;
 
+	if (std::getenv("CS16DB_DEBUG")) {
+		std::cerr << "[demo] entries=" << demo.directoryEntries.size()
+		          << " dirOffset=" << h.directoryOffset << " mapCRC=" << h.mapCRC << "\n";
+		for (const auto& e : demo.directoryEntries)
+			std::cerr << "  entry type=" << e.type << " desc=" << e.description
+			          << " frames=" << e.frameCount << " offset=" << e.offset
+			          << " len=" << e.fileLength << "\n";
+	}
+
 	auto visit = [&](const DemoFrame* f) {
 		switch (f->type) {
 		case DemoFrameType::CLIENT_DATA: {
@@ -61,13 +70,20 @@ static bool run(const std::string& demopath, const std::string& outpath, bool ca
 		default: {
 			if ((int)f->type <= 1) {
 				auto* nm = static_cast<const NetMsgFrame*>(f);
+				if (std::getenv("CS16DB_DEBUG") && framesParsed < 40) {
+					std::fprintf(stderr, "[visit] #%d type=%d tick=%d len=%zu head:",
+					             framesParsed, (int)f->type, f->frame, nm->msg.size());
+					for (size_t i = 0; i < nm->msg.size() && i < 16; ++i)
+						std::fprintf(stderr, " %02x", nm->msg[i]);
+					std::fprintf(stderr, "\n");
+				}
 				// camera source 2: RefParams inside the 464-byte demo info prefix
 				{
 					float origin[3], angles[3];
 					std::memcpy(origin, nm->DemoInfo.RefParams.vieworg, sizeof(origin));
 					std::memcpy(angles, nm->DemoInfo.RefParams.viewangles, sizeof(angles));
-					float fov = nm->DemoInfo.RefParams.viewsize;
-					if (fov <= 0 || fov > 170) fov = 90;
+					// RefParams.viewsize is the viewport width, not FOV.
+					float fov = 90;
 					dec.addCameraFrameSrc(origin, angles, fov, f->frame, f->time, 2);
 				}
 				if (!nm->msg.empty())
@@ -94,6 +110,20 @@ static bool run(const std::string& demopath, const std::string& outpath, bool ca
 		std::cerr << "warning: parsing stopped early: " << e.what() << "\n";
 	}
 	dec.finish();
+
+	if (std::getenv("CS16DB_DEBUG")) {
+		std::cerr << "[stats] netmsgs=" << dec.msgCount << " skipped=" << dec.skippedUnsupported
+		          << " entities=" << dec.entityCount() << " frames=" << dec.frames.size()
+		          << " reslistCalls=" << dec.reslistCalls << " reslistEntries=" << dec.reslistEntries
+		          << " reslistBits=" << dec.reslistBits << "\n";
+		if (dec.reslistErrorEntry >= 0)
+			std::cerr << "  reslist rejected entry " << dec.reslistErrorEntry
+			          << ": " << dec.reslistErrorText << "\n";
+		for (const auto& kv : dec.opStats)
+			if (kv.second > 3) std::cerr << "  svc " << kv.first << " x" << kv.second << "\n";
+		for (const auto& kv : dec.tableStats)
+			std::cerr << "  table " << kv.first << " x" << kv.second << "\n";
+	}
 
 	// --- write JSON ---
 	std::string j;

@@ -23,6 +23,10 @@
 | `core/tools/` | Генератор синтетической демки, зонды формата, заглушка JSON |
 | `core/build.bat` | Сборка ядра (MSVC Build Tools + Ninja) |
 | `blender/blender_import.py` | Импорт JSON в Blender: камера, root-объекты игроков, NLA |
+| `blender/replay_import.py` | Сборка полной сцены демки: BSP-карта + игроки + камера + скайбокс + NLA |
+| `blender/bsp_import.py` | Свой импортёр GoldSrc BSP v29/30 + WAD3-текстуры + lightmap (без аддонов) |
+| `blender/smd_import.py` | Импорт SMD-арматур и Actions игроков |
+| `make_replay.bat` | «Одна кнопка»: демка → Blender-сцена целиком |
 | `max/max_import.py`, `max/max_import.ms` | Импорт JSON в 3ds Max (pymxs) + обёртка MAXScript |
 | `audit/AUDIT.md` | Отчёт аудита инструментов (выбор/отклонения) |
 | `source1/` | Ветка Source 1: CS:GO/CSS демки (demoparser2 / demoinfogo) → общий JSON |
@@ -86,30 +90,52 @@ idx 4 player origin [1902.5, -2775.2, 0]    angles [0.4, 274.8, 0] seq 13
 
 ## 3. Ветка Blender
 
+**Одна кнопка** (карта + текстуры + lightmap + игроки + анимации/набор NLA +
+камера + скайбокс + маркеры событий):
+
 ```
-# камера + игроки из JSON:
+make_replay.bat demo.dem        (или просто перетащить .dem на файл)
+# результат: demos\replay_export.blend
+```
+
+Конвейер (все этапы внутри batch):
+
+1. `demo_extract.exe demo.dem core\tests\replay_work\demo.json` — разбор демки;
+2. `core\tools\mdl2smd.py` — декомпиляция моделей игроков из
+   `cstrike\models\player\*` в SMD + анимации + манифест;
+3. `blender\replay_import.py` — сборка сцены:
+   - карта: собственный BSP v29/30 импортёр (`blender\bsp_import.py`) —
+     геометрия, UV по texinfo, текстуры (вшитые + внешние WAD3
+     `cstrike\*.wad`/`valve\*.wad`), lightmap → vertex colors `LM`,
+     скип `sky`-граней (их заменяет скайбокс);
+   - скайбокс из `gfx/env/<skyname>{up,dn,lf,rt,ft,bk}.tga` (skyname из
+     worldspawn BSP) — эмиссионные плоскости, только камера;
+   - игроки: SMD-арматуры + NLA-полосы по прогонам `sequence`
+     (учитываются fps и cycle каждой анимации), привязка локального игрока
+     (listen-сервер) к треку `source: 0` (позиция ног);
+   - камера: keyframes по **времени** (`time`), выбор источника
+     `2 → 1 → 4 → 0` (см. ниже), FOV через `lens`, интерполяция LINEAR,
+     сплайн-путь `CamPath` по `--cam-spline`;
+   - события: sound/kill/round → timeline-маркеры + beacons.
+
+Подробнее о камере: `source` 0 = CLIENT_DATA-кадр (ноги игрока, +28 юнитов),
+1 = svc_clientdata, 2 = RefParams из префикса кадра (взгляд рендера), 4 = HLTV
+viewentity (позиция объекта; для игроков +28, для map-камер — как есть).
+В старых сценариях остался `blender_import.py` (только камера/игроки из JSON):
+
+```
 blender --background --python blender\blender_import.py -- \
     --json out\qqq.json --out scene.blend --mirror-yaw --flip-pitch --cam-step 20
-
-# параметры:
-#   --scale 0.0254      GoldSrc дюймы -> метры (по умолчанию 0.0254)
-#   --fps 30            кадров в секунду результирующего таймлайна
-#   --mirror-yaw --flip-pitch   коррекция знаков углов (подбирается на тесте)
-#   --cam-step N        прореживание сэмплов камеры (реальные демки дают ~100/с)
-#   --seq-map "0:idle,1:run"    сопоставление sequence -> Action
-#   --bvh camera.bvh    вместо ключей — импорт BVH из HLAE
-#   --map-bsp de_map.bsp   импорт карты (нужен аддон GoldImporter / io_mesh_bsp)
 ```
 
 Шаги полного продакшн-пайплайна в Blender:
 
-1. **Карта**: File → Import → BSP (аддон GoldImporter — доступен вне GitHub,
-   либо `blender_io_mesh_bsp` (andyp123), либо SourceIO legacy). Масштаб 0.0254.
-2. **Модель**: Crowbar: `mdl → smd/ref/smd`; импорт SMD через
-   `cs-smd-blender-importer` (или Blender Source Tools). Анимации появятся как Actions.
-3. **Камера**: `--bvh` могbe.  Из HLAE: AfxHookGoldSrc → export camera BVH →
-   импорт `File > Import > BVH` или аргумент `--bvh`.
-4. **Анимация**: `blender_import.py` строит NLA-полосы по `sequence` (см. `--seq-map`).
+1. **Карта**: `make_replay.bat` уже импортирует BSP/WAD сам — аддоны не нужны.
+   Для CS:GO-карт (SourceIO) по-прежнему нужен Blender 4.x.
+2. **Модель**: MDL→SMD делает `core\tools\mdl2smd.py` (9 моделей CS 1.6,
+   ~103 анимации каждая).
+3. **Камера**: из JSON; для HLAE-пути остаётся BVH (`--bvh camera.bvh`).
+4. **Анимация**: NLA-полосы строятся автоматически по `sequence`/`cycle`.
 
 ## 4. Ветка 3ds Max
 
@@ -175,6 +201,22 @@ core\tests\run_tests.bat
 
 ## Известные ограничения
 
+- **Blender 5.0 + `--factory-startup` = чёрные рендеры** в фоновом режиме на
+  этой машине (EEVEE/Workbench/Cycles): запускайте без флага (make_replay так
+  и делает). Шум аддонов (BY-GEN/Auto-Rig-Pro) в лог не влияет на результат.
+- **EEVEE-свет**: в headless-режиме SUN-источники не освещают (физические
+  падение point-света 1/r²); в сцену добавлен риг `Fill` (point у камеры) +
+  Sun — итоговое освещение крутится как обычно в редакторе.
+- **WAD-текстуры `cs_dust.wad`** в обеих установках содержат повреждённые
+  инструментом lump'ы (мусор в именах, шумный пиксельный поток с полной
+  палитрой). Импортёр выводит их как есть; вшитые в BSP текстуры
+  (например `csSandWallBTA`) корректны. Для замены подложите свои `.tga`
+  в `map_tex/`.
+- HLTV-демки `desur1` (de_survivor): со второй половины записи битстрим
+  рассинхронизируется (пакеты `packetentities` рвутся); камера
+  восстанавливается по истории `svc_setview` (source 4), позиция
+  статичного map-камера берется из первого появления сущности.
+  Спавнстаты с невалидными координатами/индексами отфильтровываются.
 - «Режиссёрская» камера HLTV: трек отсутствует в файле (генерируется локально);
   доступна spectator-камера (`source: 4`: позиция зрителя + ориентация viewentity).
 - В старых HLTV-записях (proto 47) часть сущностей вне FOV режиссёра может

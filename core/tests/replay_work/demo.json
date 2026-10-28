@@ -1,12 +1,12 @@
 {
-"demo": "C:\\dev\\cs16db\\demos\\synthetic.dem",
+"demo": "demos\\synthetic.dem",
 "map": "de_test",
 "game": "cstrike",
 "demo_protocol": 5,
 "net_protocol": 48,
 "tick_interval": 8,
 "max_clients": 32,
-"frames_parsed": 38,
+"frames_parsed": 37,
 "camera_frames": 4,
 "resources": {
 "count": 0
@@ -61,28 +61,48 @@
 {
 "index": 1,
 "player": true,
-"origin": [31, 3, 24],
+"origin": [-4105662, 0, 501.1795],
 "angles": [0, 0, 0],
-"modelindex": 2,
+"modelindex": 267,
 "sequence": 1,
-"frame": 0.267,
-"animtime": 0.06,
-"framerate": 30,
+"frame": 5733.283,
+"animtime": 0.07918739,
+"framerate": 0,
 "body": 0,
-"cycle": 0.6
+"cycle": 0
 },
 {
-"index": 2,
+"index": 3,
 "player": true,
-"origin": [36, 6, 24],
-"angles": [0, 0, 0],
-"modelindex": 2,
-"sequence": 1,
-"frame": 0.267,
-"animtime": 0.04,
-"framerate": 30,
+"modelindex": 0,
+"sequence": 0,
+"frame": 0,
+"animtime": 0,
+"framerate": 0,
 "body": 0,
-"cycle": 1.2
+"cycle": 0
+},
+{
+"index": 51,
+"player": false,
+"modelindex": 0,
+"sequence": 0,
+"frame": 0,
+"animtime": 0,
+"framerate": 0,
+"body": 0,
+"cycle": 0
+},
+{
+"index": 68,
+"player": false,
+"modelindex": 23,
+"sequence": 0,
+"frame": 0,
+"animtime": 0,
+"framerate": 0,
+"body": 0,
+"cycle": 0
 }
 ]
 },
@@ -93,28 +113,48 @@
 {
 "index": 1,
 "player": true,
-"origin": [47, 3, 28],
+"origin": [-2052831, 0, 501.1795],
 "angles": [0, 0, 0],
-"modelindex": 2,
+"modelindex": 200,
 "sequence": 0,
-"frame": 0.2,
-"animtime": 0.14,
-"framerate": 30,
+"frame": 5733.283,
+"animtime": 0.158768,
+"framerate": 0,
 "body": 0,
-"cycle": 0.5999999
+"cycle": 0
 },
 {
-"index": 2,
+"index": 3,
 "player": true,
-"origin": [52, 6, 28],
-"angles": [0, 0, 0],
-"modelindex": 2,
+"modelindex": 0,
 "sequence": 0,
-"frame": 0.2,
-"animtime": 0.12,
-"framerate": 30,
+"frame": 0,
+"animtime": 0,
+"framerate": 0,
 "body": 0,
-"cycle": 1.2
+"cycle": 0
+},
+{
+"index": 51,
+"player": false,
+"modelindex": 0,
+"sequence": 0,
+"frame": 0,
+"animtime": 0,
+"framerate": 0,
+"body": 0,
+"cycle": 0
+},
+{
+"index": 68,
+"player": false,
+"modelindex": 27,
+"sequence": 0,
+"frame": 0,
+"animtime": 0,
+"framerate": 0,
+"body": 0,
+"cycle": 0
 }
 ]
 },
@@ -125,28 +165,48 @@
 {
 "index": 1,
 "player": true,
-"origin": [63, 3, 32],
-"angles": [0, 0, 0],
-"modelindex": 2,
+"origin": [0, 0, 501.1795],
+"angles": [0.005493164, 0, 0],
+"modelindex": 133,
 "sequence": 1,
-"frame": 0.133,
-"animtime": 0.22,
-"framerate": 30,
+"frame": 5733.283,
+"animtime": 0.2383486,
+"framerate": 0,
 "body": 0,
-"cycle": 0.5999999
+"cycle": 0
 },
 {
-"index": 2,
+"index": 3,
 "player": true,
-"origin": [68, 6, 32],
-"angles": [0, 0, 0],
-"modelindex": 2,
-"sequence": 1,
-"frame": 0.133,
-"animtime": 0.2,
-"framerate": 30,
+"modelindex": 0,
+"sequence": 0,
+"frame": 0,
+"animtime": 0,
+"framerate": 0,
 "body": 0,
-"cycle": 1.2
+"cycle": 0
+},
+{
+"index": 51,
+"player": false,
+"modelindex": 0,
+"sequence": 0,
+"frame": 0,
+"animtime": 0,
+"framerate": 0,
+"body": 0,
+"cycle": 0
+},
+{
+"index": 68,
+"player": false,
+"modelindex": 31,
+"sequence": 0,
+"frame": 0,
+"animtime": 0,
+"framerate": 0,
+"body": 0,
+"cycle": 0
 }
 ]
 }

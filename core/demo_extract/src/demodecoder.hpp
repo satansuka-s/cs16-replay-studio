@@ -3,6 +3,7 @@
 #pragma once
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <cstdlib>
 #include <fstream>
@@ -66,6 +67,19 @@ public:
 	std::map<int, int> opStats;
 	std::map<std::string, int> tableStats;
 	ResourceInfo resources;
+	int reslistCalls = 0;    // svc_resourcelist calls (debug)
+	int reslistEntries = 0;  // entries accepted (debug)
+	int reslistBits = 0;     // bits consumed by the last list (debug)
+	int reslistErrorEntry = -1;     // first rejected entry index (-1 = none)
+	std::string reslistErrorText;   // diagnostics for the rejected entry
+
+	static int traceLimit() {
+		if (const char* v = std::getenv("CS16DB_TRACE_LIMIT")) {
+			int n = std::atoi(v);
+			if (n > 0) return n;
+		}
+		return 4;
+	}
 	// edit markers: sound events with position (decimated)
 	std::vector<SoundEvent> soundEvents;
 	int soundDecim_ = 8; // keep every 8th sound event
@@ -101,17 +115,55 @@ public:
 		++msgCount;
 		curTick_ = tick;
 		curTime_ = demotime;
+		// CS 1.6 writes a filler "userdata" packet between real net messages:
+		// svc_nop + 4 zero bytes + float 90.0. It carries no entity/camera data.
+		if (len == 8 && data[0] == SVC_NOP)
+			return;
 		BitReader br(data, len);
-		while (br.bitsLeft() >= 8) {
-			uint8_t op = (uint8_t)br.readUBits(8);
-			opStats[op]++;
-			if (op == SVC_BAD) {
-				// delimiter/alignment artifact in recorded streams
-				++skippedUnsupported;
-				break;
+		int op = -1;
+		try {
+			while (br.bitsLeft() >= 8) {
+				size_t opBit = br.bitPos();
+				op = (int)br.readUBits(8);
+				opStats[op]++;
+				if (std::getenv("CS16DB_TRACE") && (msgCount <= traceLimit() || op == 40 || op == 41)) {
+					std::fprintf(stderr, "[trace] msg=%d tick=%d op=%d bit=%zu\n", msgCount, tick,
+					             op, opBit);
+					if (opBit == 0 || op == 40 || op == 41) {
+						std::fprintf(stderr, "[msg] len=%zu head=", br.size() * 8);
+						for (size_t i = 0; i < br.size() && i < 64; ++i)
+							std::fprintf(stderr, "%02x", br.data()[i]);
+						std::fprintf(stderr, "\n");
+					}
+				}
+				if (op == SVC_BAD) {
+					// delimiter/alignment artifact in recorded streams:
+					// a trailing zero byte terminates the frame quietly
+					bool allZero = true;
+					while (br.bitsLeft() > 0)
+						if (br.readBit()) { allZero = false; break; }
+					if (!allZero) ++skippedUnsupported;
+					break;
+				}
+				handleSvc((uint8_t)op, br);
+				// GoldSrc MSG_WriteByte is UBitLong(8) at the current bit position:
+				// svc commands are bit-continuous. Only bit-writing sections
+				// (MSG_Start/EndBitWriting) pad their own payload to a byte boundary.
+			
 			}
-			handleSvc(op, br);
+		} catch (const std::exception& e) {
+			if (std::getenv("CS16DB_DEBUG"))
+				debugDump(data, len, tick, op, br.bitPos(), e.what());
+			throw;
 		}
+	}
+
+	static void debugDump(const uint8_t* data, size_t len, int tick, int op,
+	                      size_t bitPos, const char* what) {
+		std::fprintf(stderr, "[netmsg] tick=%d op=%d bit=%zu/%zu: %s\n  head:", tick, op,
+		             bitPos, len * 8, what);
+		for (size_t i = 0; i < len && i < 40; ++i) std::fprintf(stderr, " %02x", data[i]);
+		std::fprintf(stderr, "\n");
 	}
 
 	void sampleTick(int tick, float time) {
@@ -126,13 +178,88 @@ public:
 		for (const auto& kv : entities_)
 			f.entities.push_back(kv.second);
 		frames.push_back(std::move(f));
+
+		// HLTV: the proxy has no clientdata; follow the view entity set by
+		// svc_setview.  Player entity origin is at the feet, so lift it to eye
+		// level; map cameras (trigger_camera etc.) are used as-is.
+		if (spectator_ && viewEntity_ > 0 && tick != lastHltvCamTick_) {
+			auto it = entities_.find(viewEntity_);
+			if (it != entities_.end() && it->second.has_origin) {
+				CameraSample c;
+				c.tick = tick;
+				c.time = time;
+				std::memcpy(c.origin, it->second.origin, sizeof(c.origin));
+				if (viewEntity_ <= maxClients_)
+					c.origin[2] += 28.0f;
+				if (hasHltvAngles_) {
+					std::memcpy(c.viewangles, hltvAngles_, sizeof(c.viewangles));
+				} else if (it->second.has_angles) {
+					std::memcpy(c.viewangles, it->second.angles, sizeof(c.viewangles));
+				}
+				c.fov = 90;
+				c.source = 4;
+				cam_raw.push_back(c);
+				lastHltvCamTick_ = tick;
+			}
+		}
 	}
 
 	void finish() {
+		buildSpectatorCamera();
 		std::sort(cam_raw.begin(), cam_raw.end(),
 		          [](const CameraSample& a, const CameraSample& b) { return a.tick < b.tick; });
 		camera = std::move(cam_raw);
 	}
+
+	// HLTV fallback: if the streaming sampleTick loop produced nothing (view
+	// entity unknown / zero at sample time, e.g. after a bitstream desync),
+	// rebuild the camera from the setview history and the entity timeline.
+	void buildSpectatorCamera() {
+		if (!spectator_ || !cameraIsEmpty()) return;
+		// pick the most frequent non-zero setview target
+		std::map<int, int> freq;
+		for (const auto& [t, ve] : setviewHistory_)
+			if (ve > 0) ++freq[ve];
+		if (freq.empty()) return;
+		int best = 0, bestN = 0;
+		for (const auto& [ve, n] : freq)
+			if (n > bestN) { best = ve; bestN = n; }
+		const bool lift = best <= maxClients_;
+		float lastOrigin[3] = {0, 0, 0};
+		float lastAngles[3] = {0, 0, 0};
+		bool haveOrigin = false, haveAngles = false;
+		for (const auto& f : frames) {
+			for (const auto& e : f.entities) {
+				if (e.index != best) continue;
+				if (e.has_origin) {
+					std::memcpy(lastOrigin, e.origin, sizeof(lastOrigin));
+					lastOrigin[2] += lift ? 28.0f : 0.0f;
+					haveOrigin = true;
+				}
+				if (e.has_angles) {
+					std::memcpy(lastAngles, e.angles, sizeof(lastAngles));
+					haveAngles = true;
+				}
+				break;
+			}
+			if (!haveOrigin) continue;
+			CameraSample c;
+			c.tick = f.tick;
+			c.time = f.time;
+			std::memcpy(c.origin, lastOrigin, sizeof(c.origin));
+			if (hasHltvAngles_)
+				std::memcpy(c.viewangles, hltvAngles_, sizeof(c.viewangles));
+			else if (haveAngles)
+				std::memcpy(c.viewangles, lastAngles, sizeof(c.viewangles));
+			c.fov = 90;
+			c.source = 4;
+			cam_raw.push_back(std::move(c));
+		}
+		if (std::getenv("CS16DB_DEBUG"))
+			std::fprintf(stderr, "[hltv-cam] entity=%d samples=%zu\n", best, cam_raw.size());
+	}
+
+	bool cameraIsEmpty() const { return cam_raw.empty(); }
 
 	int entityCount() const { return (int)entities_.size(); }
 
@@ -147,10 +274,21 @@ private:
 	float curTime_ = 0;
 	float serverTime_ = 0;
 	bool instancedBaselineMode_ = false;
+	bool spectator_ = false; // HLTV proxy demo: svc_clientdata has no payload
+	float hltvAngles_[3] = {0, 0, 0};
+	bool hasHltvAngles_ = false;
+	int lastHltvCamTick_ = -1;
+	std::vector<std::pair<int, int>> setviewHistory_; // {tick, entity}
 	std::map<std::string, DeltaTable> tables_;
 	std::map<int, EntityState> entities_;
 	std::map<int, EntityState> baselines_;
+	std::map<int, EntityState> staticEntities_; // from svc_spawnstatic (index = -(N+1))
+	int staticCount_ = 0;
 	std::vector<EntityState> instancedBaselines_;
+	// GoldSrc user messages registered by svc_newusermsg: id -> payload size
+	// (-1 = variable length, first byte of the payload carries the size).
+	std::map<int, int> userMsgSizes_;
+	std::map<int, std::string> userMsgNames_;
 
 	float cd_origin[3] = {0, 0, 0};
 	float cd_viewangles[3] = {0, 0, 0};
@@ -198,6 +336,49 @@ private:
 				tableStats[std::string("builtin:") + n]++;
 			}
 		}
+		// movevars_t is not in delta.lst: the engine carries a compiled-in
+		// description (HLSDK net_encode.c Delta_InitMovevars) used by
+		// svc_deltamovevars. Needed to stay in sync on client-recorded demos.
+		if (!tables_.count("movevars_t")) {
+			DeltaTable t;
+			t.name = "movevars_t";
+			auto add = [&t](const char* n, uint32_t flags, int bits, float mul) {
+				DeltaField f;
+				f.name = n;
+				f.flags = flags;
+				f.bits = bits;
+				f.multiplier = mul;
+				t.fields.push_back(f);
+			};
+			const uint32_t F = DT_FLOAT | DT_SIGNED;
+			add("gravity", F, 16, 8.0f);
+			add("stopspeed", F, 16, 8.0f);
+			add("maxspeed", F, 16, 8.0f);
+			add("spectatormaxspeed", F, 16, 8.0f);
+			add("accelerate", F, 16, 8.0f);
+			add("airaccelerate", F, 16, 8.0f);
+			add("wateraccelerate", F, 16, 8.0f);
+			add("friction", F, 16, 8.0f);
+			add("edgefriction", F, 16, 8.0f);
+			add("waterfriction", F, 16, 8.0f);
+			add("bounce", F, 16, 8.0f);
+			add("stepsize", F, 16, 16.0f);
+			add("maxvelocity", F, 16, 8.0f);
+			add("zmax", DT_FLOAT, 24, 1.0f);
+			add("waveHeight", F, 16, 16.0f);
+			add("footsteps", DT_INTEGER, 1, 1.0f);
+			add("skyName", DT_STRING, 1, 1.0f);
+			add("rollangle", F, 16, 32.0f);
+			add("rollspeed", F, 16, 8.0f);
+			add("skycolor_r", F, 16, 1.0f);
+			add("skycolor_g", F, 16, 1.0f);
+			add("skycolor_b", F, 16, 1.0f);
+			add("skyvec_x", F, 16, 32.0f);
+			add("skyvec_y", F, 16, 32.0f);
+			add("skyvec_z", F, 16, 32.0f);
+			tables_["movevars_t"] = std::move(t);
+			tableStats["builtin:movevars_t"]++;
+		}
 	}
 
 	bool builtinLoaded_ = false;
@@ -234,42 +415,53 @@ private:
 
 	void handleSvc(uint8_t op, BitReader& br);
 	void parseDeltaTable(BitReader& br);
+	void parseNewUserMsg(BitReader& br);
+	void skipUserMessage(uint8_t op, BitReader& br);
 	void parseClientData(BitReader& br);
 	void applyClientField(const DeltaField& f, float v);
 	void skipSound(BitReader& br);
 	void skipSpawnStatic(BitReader& br);
+	void skipTempEntity(BitReader& br);
 	void parseEvents(BitReader& br, bool reliable);
 	void parseBaselines(BitReader& br);
 	void parsePacketEntities(BitReader& br, bool delta);
 	void parsePacketEntitiesClassic(BitReader& br, bool delta);
 	// ---- svc_resourcelist (Xash CL_ParseResourceList, GoldSrc) ----
 	void parseResourceList(BitReader& br) {
+		++reslistCalls;
+		size_t startBit = br.bitPos();
 		uint32_t total = br.readUBits(12);
 		ResourceInfo r;
 		for (uint32_t i = 0; i < total; ++i) {
 			uint32_t type = br.readUBits(4);
 			std::string name = br.readString();
-			br.skip(12); // index
-			br.skip(24); // download size
+			br.skip(12); // index (MAX_MODEL_BITS)
+			br.skip(24); // download size (unsigned in GoldSrc)
 			uint32_t flags = br.readUBits(3);
-			if (flags & 0x02) br.skip(16 * 8); // RES_CUSTOM: md5
-			if (br.readBit()) br.skip(16 * 8); // reserved (HLSDK resource_t, future use)
+			if (flags & 0x04) br.skip(16 * 8); // RES_CUSTOM: md5
+			if (br.readBit()) br.skip(32 * 8); // reserved block (rguc_reserved[32])
 			// sanity: recorded streams often lack a real resourcelist payload;
 			// bail out if entries look degenerate (empty names, absurd counts)
 			{
 				bool nameOk = !name.empty() && name.size() <= 250;
 				for (char c : name)
 					if ((unsigned char)c > 0x7e || (unsigned char)c < 0x20) { nameOk = false; break; }
-				if (!nameOk || i > 600 || br.bitsLeft() < 32) {
-					return; // degenerate/not a real resource list; keep previous state
+				if (!nameOk || i > 1200) {
+					reslistErrorEntry = (int)i;
+					reslistErrorText = "name=" + name + " bitsLeft=" + std::to_string((long long)br.bitsLeft());
+					// keep what was parsed so far, then stop
+					break;
 				}
 			}
+			// resourcetype_t: t_sound=0, t_skin=1, t_model=2, t_decal=3, t_generic=4
 			switch (type & 0xF) {
-			case 0: r.models.push_back(name); break;   // t_model
-			case 1: r.sounds.push_back(name); break;   // t_sound
-			case 2: r.skins.push_back(name); break;    // t_skin
-			case 3: r.sprites.push_back(name); break;  // t_sprite
-			default: r.generic.push_back(name); break; // t_generic etc
+			case 0: r.sounds.push_back(name); break;
+			case 1: r.skins.push_back(name); break;
+			case 2:
+				if (name.rfind("sprites/", 0) == 0) r.sprites.push_back(name);
+				else r.models.push_back(name);
+				break;
+			default: r.generic.push_back(name); break; // decals/event scripts etc.
 			}
 		}
 		// consistency info trailer: [1 bit need][if need: while bit: [1 isdelta][5 or 10 bits]]
@@ -282,6 +474,10 @@ private:
 		}
 		if (!r.models.empty() || !r.sounds.empty() || !r.sprites.empty() || !r.skins.empty())
 			resources = std::move(r);
+		reslistEntries = (int)(resources.models.size() + resources.sounds.size() +
+		                       resources.skins.size() + resources.sprites.size() +
+		                       resources.generic.size());
+		reslistBits = (int)(br.bitPos() - startBit);
 	}
 
 	// ---- svc_customization: file metadata (name/size/type) for custom resources----
@@ -292,7 +488,7 @@ private:
 		br.skip(16);                // index
 		uint32_t size = br.readUBits(32);
 		uint32_t flags = br.readUBits(8);
-		if ((int)(flags & 0x40) != 0) br.skip(16 * 8); // RES_CUSTOM -> md5
+		if ((int)(flags & 0x04) != 0) br.skip(16 * 8); // RES_CUSTOM -> md5
 		// remember: best-effort, only metadata; body goes through download channels
 		{
 			bool ok = !name.empty() && name.size() <= 250;
@@ -302,10 +498,9 @@ private:
 		}
 		ResourceInfo& r = resources;
 		switch (type & 0xF) {
-		case 0: r.models.push_back(name); break;
-		case 1: r.sounds.push_back(name); break;
-		case 2: r.skins.push_back(name); break;
-		case 3: r.sprites.push_back(name); break;
+		case 0: r.sounds.push_back(name); break;
+		case 1: r.skins.push_back(name); break;
+		case 2: r.models.push_back(name); break;
 		default: r.generic.push_back(name); break;
 		}
 		(void)size;
@@ -326,17 +521,41 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 	case SVC_TIME:
 		serverTime_ = br.readFloat();
 		break;
+	case SVC_DISCONNECT:
+		br.readString();
+		break;
 	case SVC_PRINT:
 	case SVC_STUFFTEXT:
 	case SVC_CENTERPRINT:
 		br.readString();
 		break;
-	case SVC_SETVIEW:
-		viewEntity_ = (int)br.readUBits(16);
+	case SVC_SETVIEW: {
+		int ve = (int)br.readUBits(16);
+		// Desynced streams read arbitrary 16-bit values; real entity ids are
+		// well below MAX_EDICTS (4096).  Reject implausible ones but keep the
+		// message length correct.
+		if (ve <= 4095) {
+			viewEntity_ = ve;
+			setviewHistory_.push_back({curTick_, ve});
+			if (std::getenv("CS16DB_DEBUG"))
+				std::fprintf(stderr, "[setview] tick=%d entity=%d\n", curTick_, viewEntity_);
+		}
 		break;
-	case SVC_SETANGLE:
-		br.skip(16 * 3);
+	}
+	case SVC_SETANGLE: {
+		// MSG_WriteHiresAngle x3 (16 bits each, 360/65536 degrees)
+		float a[3];
+		bool ok = true;
+		for (int i = 0; i < 3; ++i) {
+			a[i] = (float)br.readUBits(16) * (360.0f / 65536.0f);
+			if (a[i] > 360.0f + 1e-3f) ok = false; // angles wrap; larger = junk
+		}
+		if (ok) {
+			std::memcpy(hltvAngles_, a, sizeof(a));
+			hasHltvAngles_ = true;
+		}
 		break;
+	}
 	case SVC_SERVERDATA:
 		br.skip(32);        // protocol
 		br.skip(32);        // servercount
@@ -357,31 +576,49 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 	case SVC_LIGHTSTYLE:
 		br.skip(8);
 		br.readString();
-		br.skip(32);
 		break;
 	case SVC_INTERMISSION:
 	case SVC_FINALE:
 	case SVC_CUTSCENE:
 	case SVC_CHOKE:
+	case SVC_DAMAGE:
+	case SVC_KILLEDMONSTER:
+	case SVC_FOUNDSECRET:
 		break;
 	case SVC_CDTRACK:
-	case SVC_RESTORE:
-		br.readString();
+		br.skip(8 + 8); // track, loop track
 		break;
+	case SVC_RESTORE: {
+		br.readString();                 // savename
+		int mapCount = (int)br.readUBits(8);
+		for (int i = 0; i < mapCount; ++i) br.readString();
+		break;
+	}
 	case SVC_SETPAUSE:
 	case SVC_SIGNONNUM:
-	case SVC_CROSSHAIRANGLE:
 		br.skip(8);
+		break;
+	case SVC_CROSSHAIRANGLE:
+		br.skip(8 + 8);
+		break;
+	case SVC_SOUNDFADE:
+		br.skip(4 * 8); // fade percent, hold time, fade out/in seconds
 		break;
 	case SVC_WEAPONANIM:
 		br.skip(8 + 8);
 		break;
+	case SVC_DECALNAME:
+		br.skip(8);
+		br.readString();
+		break;
+	case SVC_ROOMTYPE:
+		br.skip(16);
+		break;
 	case SVC_ADDANGLE:
-		br.skip(16 * 3);
+		br.skip(16);
 		break;
 	case SVC_RESOURCEREQUEST:
-		br.skip(16);
-		br.readString();
+		br.skip(32 + 32); // servercount, start index
 		break;
 	case SVC_SENDEXTRAINFO:
 		br.readString();
@@ -391,8 +628,10 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 		br.skip(32);
 		break;
 	case SVC_UPDATEUSERINFO:
-		br.skip(8);
-		br.readString();
+		br.skip(8);         // client slot
+		br.skip(32);        // userid
+		br.readString();    // userinfo
+		br.skip(16 * 8);    // hashed cd key
 		break;
 	case SVC_DELTATABLE:
 		parseDeltaTable(br);
@@ -402,6 +641,12 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 		break;
 	case SVC_SOUND:
 		skipSound(br);
+		break;
+	case SVC_STOPSOUND:
+		br.skip(16);
+		break;
+	case SVC_PARTICLE:
+		br.skip(11 * 8); // vec3 coord + 3 chars + count + color
 		break;
 	case SVC_SPAWNSTATIC:
 		skipSpawnStatic(br);
@@ -419,13 +664,8 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 		break;
 	case SVC_PINGS:
 		while (br.readBit()) {
-			br.skip(5);  // slot (MAX_CLIENT_BITS)
-			br.skip(12); // ping
-			br.skip(7);  // packet loss
+			br.skip(24); // slot(5) + ping(12) + packet loss(7)
 		}
-		break;
-	case SVC_RESTORESOUND:
-		br.readString();
 		break;
 	case SVC_PACKETENTITIES:
 		if (classicMode_) parsePacketEntitiesClassic(br, false);
@@ -435,30 +675,78 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 		if (classicMode_) parsePacketEntitiesClassic(br, true);
 		else parsePacketEntities(br, true);
 		break;
-	case SVC_HLTV:
-		br.skip(8);
+	case SVC_TEMP_ENTITY:
+		skipTempEntity(br);
+		break;
+	case SVC_FILETXFERFAILED:
+		br.readString();
+		break;
+	case SVC_HLTV: {
+		uint32_t sub = br.readUBits(8);
+		if (sub == 0) {
+			// HLTV_ACTIVE: this demo was recorded by an HLTV proxy. Proxy
+			// clients receive svc_clientdata without any payload (ReHLDS
+			// SV_WriteClientdataToClient returns right after the opcode).
+			spectator_ = true;
+		} else if (sub == 1) {
+			br.skip(10 * 8); // HLTV_STATUS: word + long + long
+		} else if (sub == 2) {
+			br.readString(); // HLTV_LISTEN
+		}
+		break;
+	}
+	case SVC_VOICEINIT:
+		br.readString(); // codec name
+		br.skip(8);      // voice quality
+		break;
+	case SVC_VOICEDATA: {
+		br.skip(8); // client index
+		uint32_t sz = br.readUBits(16);
+		br.skip((int)(sz * 8));
+		break;
+	}
+	case SVC_RESOURCELOCATION:
+		br.readString();
+		break;
+	case SVC_QUERYCVARVALUE:
+		br.readString();
+		break;
+	case SVC_QUERYCVARVALUE2:
+		br.skip(32); // request id
+		br.readString();
+		break;
+	case SVC_EXEC: {
+		uint32_t isClass = br.readUBits(8);
+		if (isClass) br.skip(8);
+		break;
+	}
+	case SVC_CHANGING:
+		br.skip(32); // protocol version
 		break;
 	case SVC_DIRECTOR:
 		skipDirector(br);
 		break;
-	case SVC_DELTAMOVEVARS: {
-		auto it = tables_.find("movevars_t");
-		if (it == tables_.end()) { ++skippedUnsupported; break; }
-		readDeltaFields(br, it->second, serverTime_, br, &DemoDecoder::noopDelta);
+	case SVC_DELTAMOVEVARS:
+		// svc_deltamovevars / svc_newmovevars is NOT delta-encoded in the demo
+		// stream: it is a plain movevars_t (16 floats, footsteps byte,
+		// 8 floats, skyName string). See ReHLDS HLTV ParseMoveVars.
+		br.skip(16 * 32); // gravity .. waveHeight
+		br.skip(8);       // footsteps
+		br.skip(8 * 32);  // rollangle, rollspeed, skycolor, skyvec
+		br.readString();  // skyName
 		break;
-	}
 	case SVC_CUSTOMIZATION:
 		parseCustomization(br);
 		break;
 	case SVC_RESOURCELIST:
 		parseResourceList(br);
 		break;
+	case SVC_USERMESSAGE:
+		parseNewUserMsg(br);
+		break;
 	default:
 		if (op > SVC_LASTMSG) {
-			// user message: [byte id][byte size][size bytes]
-			br.skip(8);
-			uint32_t sz = br.readUBits(8);
-			br.skip((int)(sz * 8));
+			skipUserMessage(op, br);
 			break;
 		}
 		++skippedUnsupported;
@@ -467,35 +755,110 @@ inline void DemoDecoder::handleSvc(uint8_t op, BitReader& br) {
 }
 
 // ---------------------------------------------------------------------------
+// svc_newusermsg: [byte id][byte size][16-byte name] (0xff size = variable)
+// ---------------------------------------------------------------------------
+inline void DemoDecoder::parseNewUserMsg(BitReader& br) {
+	int id = (int)br.readUBits(8);
+	int size = (int)br.readUBits(8);
+	if (size == 0xFF) size = -1;
+	char name[17] = {0};
+	for (int i = 0; i < 16; ++i) name[i] = (char)br.readUBits(8);
+	name[16] = 0;
+	userMsgSizes_[id] = size;
+	userMsgNames_[id] = name;
+}
+
+// ---------------------------------------------------------------------------
+// user message payload (opcode itself is the registered message id)
+// ---------------------------------------------------------------------------
+inline void DemoDecoder::skipUserMessage(uint8_t op, BitReader& br) {
+	auto ni = userMsgNames_.find(op);
+	if (ni != userMsgNames_.end()) {
+		// messages the engine handles itself, regardless of registered size
+		if (ni->second == "ScreenShake") { br.skip(6 * 8); return; }
+		if (ni->second == "ScreenFade") { br.skip(10 * 8); return; }
+	}
+	auto it = userMsgSizes_.find(op);
+	int size = (it != userMsgSizes_.end()) ? it->second : -1;
+	if (size < 0) size = (int)br.readUBits(8); // variable-length: actual size byte
+	br.skip(size * 8);
+}
+
+// ---------------------------------------------------------------------------
 // svc_deltatable: builds/extends delta tables (one message may carry one field)
 // ---------------------------------------------------------------------------
 inline void DemoDecoder::parseDeltaTable(BitReader& br) {
 	std::string name = br.readString();
 	uint32_t fieldCount = br.readUBits(16);
-	DeltaTable& table = tables_[name];
-	table.name = name;
+
+	// xash Delta_ParseTableField_GS: svc_deltatable does NOT describe the field
+	// order. The server re-initializes the builtin delta.lst table and patches
+	// matching entries (flags/bits/multipliers) by name. Unknown names are
+	// appended only if a struct description exists. Decoding in wire order is
+	// therefore wrong and desynchronizes every following delta record.
+	ensureBuiltinTables();
+
+	DeltaTable table;
+	auto existing = tables_.find(name);
+	if (existing != tables_.end())
+		table = existing->second;
+	else
+		table.name = name;
+
+	std::unordered_map<std::string, size_t> byName;
+	for (size_t i = 0; i < table.fields.size(); ++i)
+		byName[table.fields[i].name] = i;
+
+	int patched = 0, appended = 0, unknown = 0;
 	for (uint32_t i = 0; i < fieldCount; ++i) {
 		GoldSrcMetaFields meta;
 		readMetaFields(br, meta);
+		uint32_t flags = meta.fieldType;
+		if (flags & DT_SIGNED_GS) {
+			flags &= ~DT_SIGNED_GS;
+			flags |= DT_SIGNED;
+		}
+		auto it = byName.find(meta.fieldName);
+		if (it != byName.end()) {
+			DeltaField& f = table.fields[it->second];
+			f.flags = flags;
+			f.bits = meta.significant_bits ? (int)meta.significant_bits : 1;
+			f.multiplier = meta.premultiply != 0 ? meta.premultiply : 1.0f;
+			f.post_multiplier = meta.postmultiply;
+			++patched;
+			continue;
+		}
+		if (meta.fieldName.empty()) {
+			++unknown;
+			continue;
+		}
 		DeltaField f;
 		f.name = meta.fieldName;
-		f.flags = meta.fieldType;
-		if (f.flags & DT_SIGNED_GS) {
-			f.flags &= ~DT_SIGNED_GS;
-			f.flags |= DT_SIGNED;
-		}
+		f.flags = flags;
 		f.bits = meta.significant_bits ? (int)meta.significant_bits : 1;
 		f.multiplier = meta.premultiply != 0 ? meta.premultiply : 1.0f;
 		f.post_multiplier = meta.postmultiply;
+		byName[f.name] = table.fields.size();
 		table.fields.push_back(f);
+		++appended;
 	}
+	tables_[name] = std::move(table);
 	tableStats[name]++;
+	if (std::getenv("CS16DB_DEBUG"))
+		std::fprintf(stderr, "[deltatable] %s wire=%u patched=%d appended=%d unknown=%d total=%zu\n",
+		             name.c_str(), fieldCount, patched, appended, unknown,
+		             tables_[name].fields.size());
 }
 
 // ---------------------------------------------------------------------------
 // svc_clientdata
 // ---------------------------------------------------------------------------
 inline void DemoDecoder::parseClientData(BitReader& br) {
+	// HLTV proxy: opcode only, no delta payload (ReHLDS SV_WriteClientdataToClient
+	// returns immediately for client->proxy).
+	if (spectator_)
+		return;
+	ensureBuiltinTables();
 	auto it = tables_.find("clientdata_t");
 	if (it == tables_.end()) {
 		++skippedUnsupported; // table not ready yet: skip leniently
@@ -503,7 +866,27 @@ inline void DemoDecoder::parseClientData(BitReader& br) {
 	}
 	const DeltaTable& t = it->second;
 	cd_has_origin = cd_has_viewangles = cd_has_fov = false;
+
+	// ReHLDS SV_WriteClientdataToClient:
+	//   [1 bit has_delta][if set: 8-bit delta_sequence][clientdata delta]
+	//   [weapon updates: 1 bit per slot, 1 => 6-bit index + weapon_data_t delta]
+	//   MSG_EndBitWriting pads the whole section to the next byte.
+	if (br.readBit())
+		br.skip(8);
+
 	readDeltaFields(br, t, serverTime_, *this, &DemoDecoder::applyClientFieldThunk);
+
+	auto wt = tables_.find("weapon_data_t");
+	if (wt != tables_.end()) {
+		int slots = 0;
+		while (slots++ < 64 && br.readBit()) {
+			br.skip(6); // weapon slot index
+			EntityState sink;
+			readDeltaFields(br, wt->second, serverTime_, sink, &ignoreDeltaField);
+		}
+	}
+	br.skip((int)((8 - (br.bitPos() & 7)) & 7));
+
 	if (cd_has_origin) {
 		CameraSample c;
 		c.tick = curTick_;
@@ -562,9 +945,81 @@ inline void DemoDecoder::skipSound(BitReader& br) {
 	}
 }
 
+// svc_spawnstatic (PF_makestatic, ReHLDS pr_cmds.cpp):
+//   short model, byte seq, byte frame, word colormap, byte skin,
+//   3 x (coord short + angle byte), byte rendermode,
+//   if rendermode: byte amt + 3 bytes color + byte renderfx
+// Static entities keep server-side edict numbers that the client never sees
+// (they are not transmitted in svc_spawnstatic); we store them with negative
+// indices (-(N+1)) so they never collide with real entity ids.  They are
+// constant for the whole demo, so they end up in every sampled frame and can
+// be placed once by the Blender importer as free-standing props.
 inline void DemoDecoder::skipSpawnStatic(BitReader& br) {
-	readGSBitVec3Coord(br);
-	br.skip(16 + 16 + 8 + 8 + 16 + 16 + 8);
+	EntityState e;
+	e.index = -(int)(++staticCount_);
+	e.modelindex = (int)br.readUBits(16);
+	e.sequence = (int)br.readUBits(8);
+	e.frame = (float)br.readUBits(8);
+	br.skip(16); // colormap
+	br.skip(8);  // skin
+	for (int i = 0; i < 3; ++i) {
+		e.origin[i] = (float)br.readUBits(16) / 8.0f; // MSG_WriteCoord (fixed 12.4)
+		e.angles[i] = (float)br.readUBits(8) * (360.0f / 256.0f); // MSG_WriteAngle
+	}
+	e.has_origin = true;
+	e.has_angles = true;
+	uint32_t rendermode = br.readUBits(8);
+	if (rendermode) br.skip(5 * 8); // renderamt, rgb, renderfx
+	// a desynced bitstream produces absurd indices/coords; keep only plausible.
+	// MSG_WriteCoord is 16-bit fixed-point (coord*8), so real coords |v| <= 4096.
+	bool ok = e.modelindex > 0 && e.modelindex < 512;
+	for (int i = 0; i < 3; ++i)
+		if (e.origin[i] < -4096.0f || e.origin[i] > 4096.0f) ok = false;
+	if (ok) {
+		entities_[e.index] = std::move(e);
+		staticEntities_[e.index] = entities_[e.index];
+	}
+	if (std::getenv("CS16DB_DEBUG"))
+		std::fprintf(stderr, "[spawnstatic] tick=%d ok=%d model=%d origin=(%.1f %.1f %.1f)\n",
+		             curTick_, ok ? 1 : 0, e.modelindex, e.origin[0], e.origin[1], e.origin[2]);
+}
+
+// ---------------------------------------------------------------------------
+// svc_temp_entity: payload length is fixed per TE_* type (ReHLDS TE_LENGTH),
+// except TE_BSPDECAL (13) and TE_TEXTMESSAGE (29) which are dynamic.
+// ---------------------------------------------------------------------------
+inline void DemoDecoder::skipTempEntity(BitReader& br) {
+	// TE_LENGTH[type] = bytes after the type byte; -1 = dynamic, -2 = invalid.
+	static const int16_t TE_LENGTH[128] = {
+		24, 20,  6, 11,  6, 10, 12, 17, 16,  6,  6,  6,  8, -1,  9, 19,
+		-2, 10, 16, 24, 24, 24, 10, 11, 16, 19, -2, 12, 16, -1, 19, 17,
+		-2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2,
+		-2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2,
+		-2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2,
+		-2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2,
+		-2, -2, -2,  2, 10, 14, 12, 14,  9,  5, 17, 13, 24,  9, 17,  7,
+		10, 19, 19, 12,  7,  7,  9, 16, 18,  6, 10, 13,  7,  1, 18, 15,
+	};
+	uint32_t type = br.readUBits(8);
+	if (type >= 128) throw std::runtime_error("temp entity: type >= TE_MAX");
+	int16_t len = TE_LENGTH[type];
+	if (len == -2) throw std::runtime_error("temp entity: invalid type " + std::to_string((int)type));
+	if (len == -1) {
+		if (type == 13) { // TE_BSPDECAL: 3 coords + entity, then optional texture index
+			br.skip(8 * 8);
+			if (br.readUBits(16) != 0) br.skip(2 * 8);
+			return;
+		}
+		if (type == 29) { // TE_TEXTMESSAGE
+			br.skip(5 * 8);  // channel + x + y
+			if (br.readUBits(8) == 2) br.skip(2 * 8); // effect == 2 -> fxtime
+			br.skip(14 * 8); // rgba x2, fadein, fadeout, holdtime
+			br.readString();
+			return;
+		}
+		throw std::runtime_error("temp entity: unknown dynamic type " + std::to_string((int)type));
+	}
+	br.skip(len * 8);
 }
 
 // ---------------------------------------------------------------------------
@@ -596,23 +1051,34 @@ inline void DemoDecoder::parseEvents(BitReader& br, bool reliable) {
 // svc_spawnbaseline
 // ---------------------------------------------------------------------------
 inline void DemoDecoder::parseBaselines(BitReader& br) {
+	int dbgCount = 0;
 	while (true) {
 		if (br.bitsLeft() < 16) throw std::runtime_error("baseline: truncated");
 		if (br.peekUBits(16) == 0xffff) {
 			br.skip(16);
 			break;
 		}
+		size_t bitStart = br.bitPos();
 		int entnum = (int)br.readUBits(MAX_GOLDSRC_ENTITY_BITS);
 		uint32_t type = br.readUBits(2);
+		if (std::getenv("CS16DB_TRACE") && dbgCount < 40)
+			std::fprintf(stderr, "[baseline] #%d ent=%d type=%u bit=%zu left=%zu\n",
+			             dbgCount, entnum, type, bitStart, br.bitsLeft());
+		++dbgCount;
 		bool player = entnum > 0 && entnum <= maxClients_;
 		EntityState base;
 		base.index = entnum;
 		base.entityType = (int)type;
 		const DeltaTable* t = nullptr;
-		if (type & 1) t = &requireTable("custom_entity_state_t");
+		if (type & 2) t = &requireTable("custom_entity_state_t"); // ENTITY_BEAM = (1<<1)
 		else if (player) t = &requireTable("entity_state_player_t");
 		else t = &requireTable("entity_state_t");
+		size_t deltaStart = br.bitPos();
 		readDeltaFields(br, *t, 1.0f, base, applyEntityField);
+		if (std::getenv("CS16DB_TRACE") && dbgCount <= 5)
+			std::fprintf(stderr, "[baseline]   deltaBits=%zu end=%zu model=%d seq=%d orig=%.1f,%.1f,%.1f\n",
+			             br.bitPos() - deltaStart, br.bitPos(), base.modelindex, base.sequence,
+			             base.origin[0], base.origin[1], base.origin[2]);
 		baselines_[entnum] = base;
 	}
 	uint32_t icount = br.readUBits(6);
@@ -634,42 +1100,47 @@ inline void DemoDecoder::parseBaselines(BitReader& br) {
 // svc_packetentities / svc_deltapacketentities
 // ---------------------------------------------------------------------------
 inline void DemoDecoder::parsePacketEntities(BitReader& br, bool delta) {
-	br.skip(16); // entity count
-	if (delta) br.skip(8); // delta sequence
+	int count = (int)br.readUBits(16);
+	int oldseq = delta ? (int)br.readUBits(8) : -1;
 	int entnum = 0;
+	int parsed = 0, removed = 0;
+	if (std::getenv("CS16DB_TRACE"))
+		std::fprintf(stderr, "[pktent] tick=%d bit=%zu delta=%d count=%d oldseq=%d\n",
+		             curTick_, br.bitPos(), (int)delta, count, oldseq);
 	while (true) {
 		if (br.bitsLeft() < 16) throw std::runtime_error("packetentities: truncated");
 		if (br.peekUBits(16) == 0) {
 			br.skip(16);
 			break;
 		}
+		// xash CL_ParseDeltaHeader
 		bool remove = false;
-		if (delta) remove = br.readBit();
-
-		if (br.readBit()) {
-			entnum += 1;
+		if (delta) {
+			remove = br.readBit() != 0;
+			if (br.readBit()) entnum = (int)br.readUBits(MAX_GOLDSRC_ENTITY_BITS);
+			else entnum += (int)br.readUBits(6);
 		} else {
-			if (!br.readBit()) {
-				entnum += (int)br.readUBits(6);
-			} else {
-				entnum = (int)br.readUBits(MAX_GOLDSRC_ENTITY_BITS);
-			}
+			if (br.readBit()) entnum += 1;
+			else if (!br.readBit()) entnum += (int)br.readUBits(6);
+			else entnum = (int)br.readUBits(MAX_GOLDSRC_ENTITY_BITS);
 		}
+		if (std::getenv("CS16DB_TRACE") && parsed < 24)
+			std::fprintf(stderr, "[pktent]   ent=%d remove=%d bit=%zu\n", entnum, (int)remove, br.bitPos());
 		if (remove) {
 			entities_.erase(entnum);
+			++removed;
 			continue;
 		}
+		++parsed;
 		bool custom = br.readBit() != 0;
 		bool hasInstanced = false;
 		uint32_t instancedIndex = 0;
 		if (instancedBaselineMode_) {
-			if (br.readBit()) {
-				hasInstanced = true;
-				instancedIndex = br.readUBits(6);
-			} else if (!delta) {
-				if (br.readBit()) br.skip(6);
-			}
-		} else if (!delta) {
+			hasInstanced = br.readBit() != 0;
+			if (hasInstanced) instancedIndex = br.readUBits(6);
+		}
+		if (!delta && !hasInstanced) {
+			// baseline offset (rare); 1 bit flag + 6-bit index
 			if (br.readBit()) br.skip(6);
 		}
 
@@ -698,6 +1169,9 @@ inline void DemoDecoder::parsePacketEntities(BitReader& br, bool delta) {
 		readDeltaFields(br, *t, serverTime_, st, applyEntityField);
 		entities_[entnum] = st;
 	}
+	if (std::getenv("CS16DB_TRACE"))
+		std::fprintf(stderr, "[pktent]   parsed=%d removed=%d cached=%zu endbit=%zu\n",
+		             parsed, removed, entities_.size(), br.bitPos());
 }
 
 // Classic (proto 47) entity packet layout (MSG_ReadDeltaEntity):
@@ -757,22 +1231,24 @@ inline void DemoDecoder::readGSBitVec3Coord(BitReader& br) {
 }
 
 inline void DemoDecoder::readGSBitVec3CoordOut(BitReader& br, float* out, bool skipOnly) {
-	for (int i = 0; i < 3; ++i)
-		if (br.readBit()) {
-			bool iv = br.readBit();
-			bool fv = br.readBit();
-			float v = 0;
-			if (iv || fv) {
-				bool sign = br.readBit();
-				float ival = 0, fval = 0;
-				if (iv) ival = (float)br.readUBits(12);
-				if (fv) fval = (float)br.readUBits(3);
-				v = fval / 8.0f + ival;
-				if (sign) v = -v;
-			}
-			if (out && !skipOnly)
-				out[i] = v;
+	// xash MSG_ReadGSBitVec3Coord: 3 presence bits first, then the values
+	bool present[3];
+	for (int i = 0; i < 3; ++i) present[i] = br.readBit();
+	for (int i = 0; i < 3; ++i) {
+		if (!present[i]) continue;
+		bool iv = br.readBit();
+		bool fv = br.readBit();
+		float v = 0;
+		if (iv || fv) {
+			bool sign = br.readBit();
+			float ival = 0, fval = 0;
+			if (iv) ival = (float)br.readUBits(12);
+			if (fv) fval = (float)br.readUBits(3);
+			v = fval / 8.0f + ival;
+			if (sign) v = -v;
 		}
+		if (out && !skipOnly) out[i] = v;
+	}
 }
 
 } // namespace gs

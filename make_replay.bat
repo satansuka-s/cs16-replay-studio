@@ -7,8 +7,9 @@ setlocal EnableExtensions
 set ROOT=%~dp0
 
 rem ---- configuration (edit if needed) ----
+rem primary install first (Build 4554 with ZBot + hltv.exe)
 set GAME=D:\Counter-Strike Build 4554
-if exist "D:\CS 1.6 GoldClient\cstrike\cstrike.exe" set GAME=D:\CS 1.6 GoldClient
+if not exist "%GAME%\cstrike\cstrike.exe" set GAME=D:\CS 1.6 GoldClient
 set BLENDER=D:\Blender\blender.exe
 if not exist "%BLENDER%" set BLENDER=blender
 set PYTHON=python
@@ -43,6 +44,8 @@ for /d %%M in ("%GAME%\cstrike\models\player\*") do (
 )
 
 echo === [3/4] build Blender scene (map + players + camera) ===
+rem NOTE: no --factory-startup - with it, Blender 5.0.1 renders black in
+rem background mode on this machine (EEVEE/Workbench/Cycles all black).
 "%BLENDER%" --background --python "%ROOT%\blender\replay_import.py" -- ^
     "--demo-json=%WORK%\demo.json" ^
     "--game=%GAME%" ^

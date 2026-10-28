@@ -15,6 +15,8 @@ public:
 
 	size_t bitPos() const { return bit_; }
 	size_t bitsLeft() const { return size_ * 8 > bit_ ? size_ * 8 - bit_ : 0; }
+	const uint8_t* data() const { return data_; }
+	size_t size() const { return size_; }
 
 	bool readBit() {
 		if (bit_ >= size_ * 8) { bit_ = size_ * 8; return 0; }

@@ -2,6 +2,8 @@
 // Semantics mirror Xash3D net_encode.c (Delta_ReadGSFields / Delta_ReadField_) and
 // khanghugo/dem (delta_description.rs).
 #pragma once
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
@@ -52,6 +54,9 @@ struct DeltaField {
 	void apply(BitReader& br, float timebase, float& out) const { out = readFloatValue(br, timebase); }
 };
 
+// No-op field sink (used to skip delta records we do not need).
+// (defined after EntityState below)
+
 // One delta table as transmitted by svc_deltatable (name + ordered fields).
 struct DeltaTable {
 	std::string name;
@@ -82,6 +87,9 @@ struct EntityState {
 	bool has_angles = false;
 	int entityType = 0; // 2-bit baseline type
 };
+
+// No-op field sink (used to skip delta records we do not need).
+inline void ignoreDeltaField(EntityState&, const DeltaField&, float) {}
 
 // The 7 meta fields of goldsrc_delta_t, in network order (net_encode.c dt_goldsrc_meta).
 struct GoldSrcMetaFields {
@@ -118,9 +126,10 @@ inline bool readMetaFields(BitReader& br, GoldSrcMetaFields& m) {
 	++i;
 	if (c > 0 && (mask[i >> 3] & (1 << (i & 7)))) m.significant_bits = br.readUBits(8);
 	++i;
-	if (c > 0 && (mask[i >> 3] & (1 << (i & 7)))) m.premultiply = br.readFloat() / 4000.0f;
+	// DT_FLOAT with multiplier 4000: stored as an unsigned 32-bit fixed-point int
+	if (c > 0 && (mask[i >> 3] & (1 << (i & 7)))) m.premultiply = (float)br.readUBits(32) / 4000.0f;
 	++i;
-	if (c > 0 && (mask[i >> 3] & (1 << (i & 7)))) m.postmultiply = br.readFloat() / 4000.0f;
+	if (c > 0 && (mask[i >> 3] & (1 << (i & 7)))) m.postmultiply = (float)br.readUBits(32) / 4000.0f;
 	return true;
 }
 
@@ -136,6 +145,19 @@ void readDeltaFields(BitReader& br, const DeltaTable& table, float timebase, Sta
 		uint8_t mask[8] = {0};
 		for (uint32_t i = 0; i < c; ++i)
 			mask[i] = (uint8_t)br.readUBits(8);
+
+		static int dbgCount = 0;
+		bool dbg = std::getenv("CS16DB_TRACE") && dbgCount < 6;
+		if (dbg) {
+			std::fprintf(stderr, "[df] %s c=%u mask=", table.name.c_str(), c);
+			for (uint32_t i = 0; i < c; ++i) std::fprintf(stderr, "%02x", mask[i]);
+			std::fprintf(stderr, " changed:");
+			for (size_t i = 0; i < table.fields.size(); ++i)
+				if ((i >> 3) < c && (mask[i >> 3] & (1 << (i & 7))))
+					std::fprintf(stderr, " %s:%d", table.fields[i].name.c_str(), table.fields[i].bits);
+			std::fprintf(stderr, "\n");
+			++dbgCount;
+		}
 
 		for (size_t i = 0; i < table.fields.size(); ++i) {
 			size_t byteIdx = i >> 3;

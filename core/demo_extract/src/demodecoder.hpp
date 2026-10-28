@@ -37,6 +37,14 @@ struct ResourceInfo {
 	std::vector<std::string> generic;
 };
 
+// Sound event captured from svc_sound (position-based), used for edit markers
+struct SoundEvent {
+	int tick = 0;
+	float time = 0;
+	int index = -1;
+	float origin[3] = {0, 0, 0};
+};
+
 struct EntityFrame {
 	int tick = 0;
 	float time = 0;
@@ -58,6 +66,9 @@ public:
 	std::map<int, int> opStats;
 	std::map<std::string, int> tableStats;
 	ResourceInfo resources;
+	// edit markers: sound events with position (decimated)
+	std::vector<SoundEvent> soundEvents;
+	int soundDecim_ = 8; // keep every 8th sound event
 
 	void begin(int sampleInterval = 1, int maxClients = MAX_CLIENTS, int netProto = 48) {
 		sampleInterval_ = sampleInterval;
@@ -192,6 +203,7 @@ private:
 	bool builtinLoaded_ = false;
 	bool classicMode_ = false; // proto 47 entity packet layout
 	int viewEntity_ = 0; // last svc_setview target
+	int sndCnt_ = 0;     // sound event counter for decimation
 
 	static void applyEntityField(EntityState& st, const DeltaField& f, float v) {
 		const std::string& n = f.name;
@@ -300,6 +312,7 @@ private:
 	}
 
 	void skipDirector(BitReader& br);
+	void readGSBitVec3CoordOut(BitReader& br, float* out, bool skipOnly);
 	void readGSBitVec3Coord(BitReader& br);
 };
 
@@ -532,10 +545,21 @@ inline void DemoDecoder::skipSound(BitReader& br) {
 	if (flags & S_att) br.skip(8);
 	br.skip(3);
 	br.skip(MAX_GOLDSRC_ENTITY_BITS);
-	if (flags & S_lg) br.skip(16);
-	else br.skip(8);
-	readGSBitVec3Coord(br);
+	int index = -1;
+	if (flags & S_lg) { index = (int)br.readUBits(16); }
+	else { index = (int)br.readUBits(8); }
+	bool keep = ((sndCnt_++) % soundDecim_) == 0;
+	float pos[3] = {0, 0, 0};
+	readGSBitVec3CoordOut(br, pos, !keep);
 	if (flags & S_pitch) br.skip(8);
+	if (keep && index >= 0 && (pos[0] != 0 || pos[1] != 0 || pos[2] != 0)) {
+		SoundEvent ev;
+		ev.tick = curTick_;
+		ev.time = curTime_;
+		ev.index = index;
+		std::memcpy(ev.origin, pos, sizeof(pos));
+		soundEvents.push_back(ev);
+	}
 }
 
 inline void DemoDecoder::skipSpawnStatic(BitReader& br) {
@@ -729,15 +753,25 @@ inline void DemoDecoder::skipDirector(BitReader& br) {
 }
 
 inline void DemoDecoder::readGSBitVec3Coord(BitReader& br) {
+	readGSBitVec3CoordOut(br, nullptr, false);
+}
+
+inline void DemoDecoder::readGSBitVec3CoordOut(BitReader& br, float* out, bool skipOnly) {
 	for (int i = 0; i < 3; ++i)
 		if (br.readBit()) {
 			bool iv = br.readBit();
 			bool fv = br.readBit();
+			float v = 0;
 			if (iv || fv) {
-				br.readBit(); // sign
-				if (iv) br.skip(12);
-				if (fv) br.skip(3);
+				bool sign = br.readBit();
+				float ival = 0, fval = 0;
+				if (iv) ival = (float)br.readUBits(12);
+				if (fv) fval = (float)br.readUBits(3);
+				v = fval / 8.0f + ival;
+				if (sign) v = -v;
 			}
+			if (out && !skipOnly)
+				out[i] = v;
 		}
 }
 

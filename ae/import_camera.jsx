@@ -116,6 +116,18 @@
         camLayer.property("Camera Options").property("Zoom").setValueAtTime(frame, (1920 / 2) / Math.tan(fov * Math.PI / 360));
     }
 
+    if (data.events && data.events.length) {
+        // edit markers from demo sound events
+        var markerProp = comp.markerProperty;
+        for (var i = 0; i < data.events.length; i++) {
+            var ev = data.events[i];
+            var frame = Math.round((ev.tick / tickRate) * fps);
+            markerProp.addMarker(frame);
+            markerProp.propertyValue(markerProp.propertyIndex(frame)) = ev.type + " " + ev.index;
+        }
+        alert("Markers added: " + data.events.length);
+    }
+
     if (POINT_AT_ORIGIN) {
         // keep the null as look-at target
         ballast.property("Position").setValue([cx, cz, -cy]);

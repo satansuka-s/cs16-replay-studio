@@ -152,10 +152,44 @@ static bool run(const std::string& demopath, const std::string& outpath, bool ca
 	}
 
 	if (camOnly) {
+		j += ",\n\"events\": [\n";
+		{
+			bool first = true;
+			for (const auto& ev : dec.soundEvents) {
+				if (!first) j += ",\n";
+				first = false;
+				j += "{\n";
+				j += "\"tick\": " + std::to_string(ev.tick) + ",\n";
+				j += "\"time\": " + fieldFloat(ev.time) + ",\n";
+				j += "\"type\": \"sound\",\n";
+				j += "\"index\": " + std::to_string(ev.index) + ",\n";
+				j += "\"origin\": "; emitVec(j, "", ev.origin); j += "\n";
+				j += "}";
+			}
+			j += "\n]";
+		}
 		j += "\n}\n";
 		std::ofstream ofs(outpath, std::ios::binary);
 		ofs << j;
 		return ofs.good();
+	}
+
+	// edit markers from sound events
+	if (!dec.soundEvents.empty()) {
+		j += ",\n\"events\": [\n";
+		bool first = true;
+		for (const auto& ev : dec.soundEvents) {
+			if (!first) j += ",\n";
+			first = false;
+			j += "{\n";
+			j += "\"tick\": " + std::to_string(ev.tick) + ",\n";
+			j += "\"time\": " + fieldFloat(ev.time) + ",\n";
+			j += "\"type\": \"sound\",\n";
+			j += "\"index\": " + std::to_string(ev.index) + ",\n";
+			j += "\"origin\": "; emitVec(j, "", ev.origin); j += "\n";
+			j += "}";
+		}
+		j += "\n]";
 	}
 
 	// entity frames

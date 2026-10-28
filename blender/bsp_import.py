@@ -151,6 +151,35 @@ def import_bsp(path, object_name=None, tex_dir=None):
         data['f'].append(new_idx)
         used += 1
 
+    # ---- lighting: per-face lightmap average (lump 8) -> vertex colors ----
+    light_off, light_len = lumps['lighting']
+
+    def i32_at(fsize, o):
+        off = o + 20 if fsize == 20 else o + 24
+        return _i32(d, off)
+
+    face_lights = {}
+    for i in range(f_count):
+        o = f_off + i * fsize
+        if o + fsize + 4 > len(d):
+            break
+        # lightofs lives at face offset 20 for 20-byte faces (HL style) or 24 for 28-byte
+        lo = i32_at(fsize, o)
+        if lo >= 0 and lo + 16 <= light_len and light_off:
+            face_lights[i] = lo
+
+    # average one 16x16 (or smaller) lightmap block per face
+    avg = {}
+    for i, lo in face_lights.items():
+        base = light_off + lo
+        block = d[base:base + 256]
+        if len(block) < 256:
+            block = d[base:base + 128] + bytes(128)
+        s = sum(block) / 256.0
+        avg[i] = s / 255.0  # 0..1 brightness
+    # apply to polygon vertex colors after mesh creation
+    avg = {}
+
     # ---- create mesh ----
     mesh = bpy.data.meshes.new((object_name or 'map') + '_mesh')
     all_v = []
@@ -175,6 +204,23 @@ def import_bsp(path, object_name=None, tex_dir=None):
             uv.data[mesh.loops[fi * plen + k]].uv = all_uv[vidx]
     obj = bpy.data.objects.new(object_name or 'map', mesh)
     bpy.context.collection.objects.link(obj)
+    # apply per-face lightmap average to vertex colors (LM attr)
+    if avg:
+        try:
+            vcol = mesh.color_attributes.new('LM', 'POINT', 'FLOAT_COLOR')
+            used_face = 0
+            for i in range(f_count):
+                o = f_off + i * fsize
+                if o + fsize > len(d):
+                    break
+                if i in face_lights and used_face < len(mesh.polygons):
+                    for loop in mesh.polygons[used_face].loop_indices:
+                        vcol.data[mesh.loops[loop].vertex_index].color = (
+                            avg[i], avg[i], avg[i], 1.0)
+                used_face += 1
+            print('[bsp] lightmap vertex colors applied (faces:', len(face_lights), ')')
+        except Exception as e:
+            print('[bsp] lightmap step skipped:', e)
     print(f'[bsp] {object_name or path}: {len(all_v)} verts, {len(all_f)} polys, mats {mat_names[:8]}')
     if tex_dir and tex_off:
         export_bsp_textures(d, tex_off, tex_len, tex_dir)

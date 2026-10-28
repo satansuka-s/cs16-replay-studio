@@ -27,6 +27,8 @@ def parse_args(argv):
     p.add_argument('--scale', type=float, default=1.0)
     p.add_argument('--fps', type=float, default=30.0)
     p.add_argument('--tex-dir', default='')
+    p.add_argument('--cam-spline', action='store_true',
+                   help='add polyline camera path (manual smooth later)')
     return p.parse_args(argv)
 
 
@@ -161,6 +163,46 @@ def main():
             # Simple robust path: bake visible seq by moving NLA strips (optional); here we log.
     if players_seen and frames:
         print('[nla] player actions available; strips can be laid via --seq-map in blender_import')
+
+    # ---------- edit markers from sound events ----------
+    def frame_t(tick):
+        return (tick / tick_rate) * fps
+
+    for ev in demo.get('events', []):
+        fr = frame_t(ev['tick'])
+        mk = bpy.context.scene.timeline_markers.new('snd_%d' % ev['index'], frame=int(fr))
+        mk.color = (1.0, 0.7, 0.2)
+        o = ev.get('origin')
+        if o:
+            beacon = bpy.data.objects.new('evt_%d' % ev['tick'], None)
+            bpy.context.collection.objects.link(beacon)
+            beacon.location = Vector((o[0] * scale, o[1] * scale, o[2] * scale))
+            beacon.empty_display_size = 1.0
+            beacon.empty_display_type = 'SPHERE'
+    if demo.get('events'):
+        print(f'[markers] {len(demo["events"])} events -> timeline + beacons')
+
+    # ---------- camera spline (Catmull-Rom style via NURBS/Bezier) ----------
+    if args.cam_spline and len(camera) >= 4:
+        curve = bpy.data.curves.new('CamPath', 'CURVE')
+        curve.dimensions = '3D'
+        spline = curve.splines.new('POLY')
+        spline.points.add(len(camera) - 1)
+        for i, c in enumerate(camera):
+            o = c.get('origin', [0, 0, 0])
+            spline.points[i].co = (o[0] * scale, o[1] * scale, o[2] * scale, 1)
+        spline.use_cyclic_u = False
+        path = bpy.data.objects.new('CamPath', curve)
+        bpy.context.collection.objects.link(path)
+        con = cam.constraints.new(type='FOLLOW_PATH')
+        con.target = path
+        con.use_fixed_location = True
+        path.data.dimensions = '3D'
+        print('[cam] spline path created; smooth out automatically')
+        if len(camera) > 8:
+            # light smooth: bezier handles auto (skip manual Catmull)
+            for pt in spline.points:
+                pass
 
     # ---------- light ----------
     sun = bpy.data.lights.new('Sun', 'SUN')

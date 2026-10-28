@@ -37,3 +37,5 @@ source1/css_extract/build/
 *.blend1
 *.tar.xz
 *.whl
+
+core/tests/*.zip

@@ -30,3 +30,10 @@ __pycache__/
 
 # css_extract build (fetchcontent clones cssdemo here)
 source1/css_extract/build/
+
+# generated/big artifacts (never push)
+*.dem
+*.blend
+*.blend1
+*.tar.xz
+*.whl

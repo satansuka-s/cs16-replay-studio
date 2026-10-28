@@ -92,6 +92,28 @@ cs16setup\install_demo_toolkit.bat          # обе установки (или 
 работают с любыми HD-заменами. Просто положите новые `models\player\*.mdl`
 и текстуры поверх установки и перезапустите `make_replay.bat`.
 
+## Визуальные моды (опционально — «картинка как в кино прямо в игре»)
+
+Геометрия из Blender-ветки всегда эталонна, но для записи «нативно-красивых»
+видео из самого движка полезны два Metahook-плагина:
+
+| Мод | Что даёт | Где взять |
+|---|---|---|
+| **Trinity Engine** | попиксельный свет, 4K-текстуры, 3D-скайбоксы, шейдерная вода, туман | `cs16setup\trinity\README.md` (архив с trinityengine.ru; на GitHub не публикуется) |
+| **CS_RenderHook** | SSAO, God Rays, bloom, LUT-пресеты | `cs16setup\renderhook\README.md` (у автора на форуме) |
+
+Установка: распаковать релиз в `staging\trinity_dist\` /
+`staging\renderhook_dist\`, затем `install_trinity.bat` /
+`install_renderhook.bat`. Откат — `restore_*.bat`. Плагины конфликтуют
+друг с другом — ставьте по одному; для онлайн-серверов не подходят.
+
+### Плавные переходы света день/ночь (без Trinity)
+
+Плагин `demo_toolkit_daynight.amxx` (уже установлен в обе сборки):
+в консоли `dtk_time day|dusk|night|random`, в чате `/day /dusk /night`.
+Плавный фейд мирового светового стиля (длительность — cvar `dtk_fade_ms`,
+значения стилей — `dtk_light_day/dusk/night`). Небо/туман — только Trinity.
+
 ## Плагины AMX Mod X (платформа установлена — что докинуть)
 
 - Демо-инструменты сообщества (auto-record, демо-менеджеры) — положить
@@ -109,6 +131,9 @@ patch_liblist.ps1       патч liblist.gam на metamod
 restore_backup.bat      откат бэкапов
 record_hltv.bat         локальный HLTV-рекордер матча
 hltv_movie.cfg          конфиг HLTV (join локального сервера + record)
+plugin/                 плагины: demo_toolkit.sma (+daynight.sma), build_plugin.bat
+trinity/                интеграция Trinity Engine (README + install/restore + пресет)
+renderhook/             интеграция CS_RenderHook (README + install/restore)
 ```
 
 Всё скачанное кэшируется в `cs16setup\downloads\`, распаковки — в `staging\`

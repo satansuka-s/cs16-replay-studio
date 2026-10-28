@@ -35,7 +35,10 @@
 | `audit/AUDIT.md` | Отчёт аудита инструментов (выбор/отклонения) |
 | `source1/` | Ветка Source 1: CS:GO/CSS демки (demoinfogo / собственный Go-экстрактор) → общий JSON |
 | `source1/go_extract/` | `csgo_extract.exe` (Go + demoinfocs v3): игроки/камера/события CS:GO |
-| `csgosetup/` | Кино-набор CS:GO: movie.cfg + пресет HLAE `mirv_streams` (normal/depth-EXR/matte) |
+| `cs16setup/plugin/demo_toolkit_daynight.sma` | Плавный день/ночь-свет в CS 1.6 (`dtk_time day|dusk|night`, /day /night) |
+| `cs16setup/trinity/`, `cs16setup/renderhook/` | Интеграция Trinity Engine и CS_RenderHook (README, install/restore, пресеты) |
+| `csgosetup/mirv_hud_separate.cfg` | CS:GO: отдельный HUD-слой (main + hudBlack/hudWhite) |
+| `csgosetup/preset_cinematic.cfg` | CS:GO: пресет «кино» (DoF, плавная камера, fps 60) |
 | `cssetup/` | Кино-набор CS:S: movie.cfg + экранная запись HLAE (`mirv_streams record screen`) |
 | `source1/css_extract/` | CS:S демки → JSON: per-tick позиции (css-demo-parser, сборка `build_css_extract.bat`) |
 | `blender/sourceio_map_import.py` | Импорт карты через SourceIO 5.5.4+ (пропы/модели; Blender 5 поддерживается) |

@@ -51,8 +51,15 @@ source1\make_replay_csgo.bat demo.dem [followUserID]
 игроки, камера POV (source 5), маркеры kill/round — и `demo.json`
 для After Effects (`ae/import_camera.jsx`).
 
-Замечания:
-- На CS:GO полный mirv_streams; на CS:S доступна только экранная запись
-  `mirv_streams record screen` (см. вики; примеры ниже в cssetup).
-- Глубина из игры (стрим depth) лучше, чем реконструкция в Blender, —
-  используйте её для передач z-композита.
+Файлы набора:
+- `movie.cfg` — базовая клавиатура (F6/F7/F8/F9/F10),
+- `mirv_streams_movie.cfg` — стримы normal/depth-EXR/matte (F9),
+- `mirv_hud_separate.cfg` — **отдельный HUD-слой** (main без HUD +
+  hudBlack/hudWhite — формула композитинга в шапке файла; туториал:
+  advancedfx «Tutorial: CS:GO Separate HUD Stream»),
+- `preset_cinematic.cfg` — стиль «кино» (DoF, плавная камера, fps 60).
+
+Пресеты «хоррор/ночь» честно: в CS:GO день-в-ночь делается
+командами из вики advancedfx «How to change demos from day to night as of
+early 2017» (mat_tonemapping + небо); готовые LUT-тонировки мы не включаем
+— цветокоррекцию лучше вести в AE по нашим пассам (depth/matte уже есть).

@@ -31,29 +31,35 @@ blender --background --python blender\blender_import.py -- --json out.json --out
 → 1625 кадров, игроки с origin/angles/velocity, .blend собран ✅
 ```
 
-## «Одна кнопка» (CS:GO) + монтажная сетка событий
+## «Одна кнопка» (CS:GO / CS:S) + своя карта + монтажная сетка событий
 
 `source1/make_replay_csgo.bat [demo.dem] [followUserID]` — полный цикл без
 ручных шагов (как `make_replay.bat` для CS 1.6):
 
 ```
-=== [1/3] csgo_extract  демка → JSON: игроки (origin/angles/velocity/health/team)
-                         + авто-камера (первый активный игрок, или --follow N)
+=== [1/4] csgo_extract  демка → JSON: игроки (origin/angles/velocity/health/team)
+                         + POV-камера (source 5; авто или --follow N)
                          + события kill / round (монтажная сетка)
-=== [2/3] Blender       сцена: плейсхолдеры игроков (кубы по росту, с ключами),
-                         камера-сплайн, маркеры kill (красные) / round (синие)
-                         / sound (оранжевые) + маячки-сферы у позиций событий
-=== [3/3] demos\csgo_replay.blend ✅
+=== [2/4] source1_tex   карта → текстуры: свой VMT/VTF-декодер
+                         (pak-лумп карты + pak01_dir.vpk установки)
+=== [3/4] Blender        сцена: карта (свой BSP v17-v21 импортёр, включая
+                         displacement-ландшафт), текстуры, игроки-кубы с ключами,
+                         камера, маркеры kill/round/sound + маячки
+=== [4/4] demos\csgo_replay.blend ✅
 ```
+
+**Собственный импортёр Source BSP** (`blender/bsp_source_import.py`):
+вершины/грани/UV по texinfo, текстуры через `core/tools/source1_tex.py`
+(VMT → `$basetexture` → VTF: DXT1/3/5 и RGBA-форматы; чистый Python +
+небольшой нативный VPK-ридер pylib (MIT, REDxEYE — см.
+`core/tools/source1_tex.py` шапку)), displacement-террейн из LUMP_DISPINFO/
+DISP_VERTS. Проверено на de_dust2 (CS:GO legacy): 229k вершин / 301k полигонов,
+27 материалов, 42 PNG-текстуры, A-site пола — на месте.
 
 События в JSON (`"events"`): `type: kill` (subject/target/origin убийцы),
 `type: round` (тик/время старта раунда). Те же маркеры пишутся в After Effects
 через `ae/import_camera.jsx` — готовая сетка для монтажа: раунды = секции,
 килы = точки смены плана.
-
-Карта в сцену не входит автономно: BSP CS:GO требует SourceIO, который не
-грузится в Blender 5.x (см. ниже) — карту импортируйте в Blender 4.x и
-сохраните в тот же .blend. Игроки/камера/события от карты не зависят.
 
 Проверка на демке пользователя (demo-de_dust2-14_54_10.dem, 202 МБ, GOTV 2018):
 заголовок и первые 70% демки разбираются: **112 248 кадров, 20 сущностей/кадр**
@@ -77,11 +83,15 @@ go.dev и pacman-зеркала в этой сети режутся; MSYS2 (GitH
 ```
 demo.dem ── source1/go_extract/csgo_extract.exe (Go, demoinfocs v3) ──> json
     ├──> replay_import.py / blender_import.py / max_import.py (общий JSON)
-    └──> "events": kill/round → маркеры Blender + AE (монтажная сетка)
-карта:     SourceIO **только Blender 4.x** (в 5.x аддон не грузится:
-           "No module named 'SourceIO'") / BSPSource→VMF→Wall Worm (Max)
+    ├──> "events": kill/round → маркеры Blender + AE (монтажная сетка)
+карта:     собственный импортёр blender/bsp_source_import.py (v17-v21,
+           displacement, VPK/VTF-текстуры) — без аддонов, работает в Blender 5;
+           опционально SourceIO (только Blender 4.x) / BSPSource→VMF→Wall Worm
 модели:    Crowbar (MDL→SMD), импорт как обычно; плейсхолдеры — автоматически
-камера:    авто-слежение за первым игроком или --follow USERID; HLAE BVH
+камера:    POV-слежение (source 5) или --follow USERID; HLAE BVH
+кино-набор: csgosetup\ (movie.cfg + mirv_streams пресет HLAE: normal/depth-EXR/
+           matte ent/wrld) и cssetup\ (CS:S: только screen record) — см.
+           вики advancedfx Source:mirv_streams
 CS2:       тот же готовый конвейер, но через demoparser2 (csgo_demo2json.py)
 ```
 
@@ -150,7 +160,7 @@ host_timescale 1
 ```
 Запись: `record имя_демки` (заканчивать `stop`), либо в меню на наблюдателе.
 
-## Конвейер Counter-Strike: Source
+## Concises CS:S
 
 Полноценного per-tick позиционного парсера под CSS нет в публичном доступе
 (демки CSS = тот же Source-1 .dem, но demoparser2 их не поддерживает).
@@ -158,8 +168,9 @@ host_timescale 1
 
 1. **События**: `demoinfogo demo.dem -X -stdout` — JSON событий
    (`source1/css_demo2json.py` — обёртка в наш JSON).
-2. **Камера**: HLAE (поддерживает CSS) — BVH → `--bvh` в blender_import.
-3. **Карта**: SourceIO / Wall Worm (те же шаги, что CS:GO).
+2. **Камера**: HLAE (поддерживает CSS только в режиме экранной записи:
+   `mirv_streams record screen`, см. `cssetup\`) — BVH → `--bvh` в blender_import.
+3. **Карта**: наш импортёр Source BSP (CS:S тоже v20!) — `bsp_source_import.py`.
 4. **Модели**: Crowbar (Source MDL), импорт как обычно.
 
 Честно: плотный трекинг позиций для CSS — открытая TODO; если найдутся

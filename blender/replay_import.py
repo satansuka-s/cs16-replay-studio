@@ -23,6 +23,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bsp_import
+import bsp_source_import
 import smd_import
 
 
@@ -99,14 +100,15 @@ def choose_camera_track(camera):
 
     Sources: 0 = demo ClientDataFrame (player feet position), 1 = svc_clientdata,
     2 = RefParams inside the demo frame prefix (what the renderer actually saw),
-    4 = HLTV proxy view entity. Priority: 2, 1, 4, 0.
+    4 = HLTV proxy view entity, 5 = CS:GO POV follow camera (csgo_extract).
+    Priority: 2, 1, 4, 5, 0.
     Returns (samples, lift_z): lift is added to origin (source 0 stores feet;
     the other sources are already at eye level).
     """
     by_src = {}
     for c in camera:
         by_src.setdefault(c.get('source', 0), []).append(c)
-    for src in (2, 1, 4, 0):
+    for src in (2, 1, 4, 5, 0):
         if src in by_src:
             samples = sorted(by_src[src], key=lambda c: (c.get('time', 0), c.get('tick', 0)))
             return samples, (28.0 if src == 0 else 0.0)
@@ -267,18 +269,28 @@ def main():
     scene.frame_start = 0
 
     # ---------- map ----------
+    # GoldSrc BSP = version 29/30, Source 1 = 17..21: pick the right importer
+    tex_out = os.path.abspath(args.tex_dir) if args.tex_dir else \
+        os.path.join(os.path.dirname(os.path.abspath(args.out)), 'map_tex')
     bsp_path = ''
-    for mod in ('cstrike', 'csgo'):
+    for mod in ('csgo', 'cstrike'):
         cand = os.path.join(args.game, mod, 'maps', mapname + '.bsp')
         if os.path.exists(cand):
             bsp_path = cand
             break
-    tex_out = os.path.abspath(args.tex_dir) if args.tex_dir else \
-        os.path.join(os.path.dirname(os.path.abspath(args.out)), 'map_tex')
+    is_source = False
     if bsp_path:
-        bsp_import.import_bsp(bsp_path, 'map_' + mapname, tex_dir=tex_out)
-        for mat in list(bpy.data.materials):
-            bsp_import.load_texture_into_material(mat.name, tex_out)
+        with open(bsp_path, 'rb') as fh:
+            bsp_ver = struct.unpack_from('<i', fh.read(8), 4)[0]
+        is_source = 17 <= bsp_ver <= 21
+        if is_source:
+            bsp_source_import.import_source_bsp(bsp_path, 'map_' + mapname, tex_dir=tex_out)
+            for mat in list(bpy.data.materials):
+                bsp_source_import.load_texture_into_material(mat.name, tex_out)
+        else:
+            bsp_import.import_bsp(bsp_path, 'map_' + mapname, tex_dir=tex_out)
+            for mat in list(bpy.data.materials):
+                bsp_import.load_texture_into_material(mat.name, tex_out)
     else:
         print('[map] BSP not found for', mapname,
               '- CS:GO maps need SourceIO in Blender 4.x; players/camera still work')
@@ -300,7 +312,12 @@ def main():
             mx = Vector((max(v.x for v in bb), max(v.y for v in bb), max(v.z for v in bb)))
             map_center = (mn + mx) * 0.5
     if bsp_path and not args.no_sky:
-        add_skybox(args.game, bsp_worldspawn(bsp_path), map_center * scale, 9000 * scale)
+        if is_source:
+            # Source skybox lives in materials/skybox/<skyname>*: not implemented
+            # for the plane box yet - keep the plain world background.
+            print('[sky] Source maps: world background used (skybox TODO)')
+        else:
+            add_skybox(args.game, bsp_worldspawn(bsp_path), map_center * scale, 9000 * scale)
 
     # ---------- camera ----------
     camdata = bpy.data.cameras.new('DemoCamera')

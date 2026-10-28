@@ -25,11 +25,18 @@
 | `blender/blender_import.py` | Импорт JSON в Blender: камера, root-объекты игроков, NLA |
 | `blender/replay_import.py` | Сборка полной сцены демки: BSP-карта + игроки + камера + скайбокс + NLA |
 | `blender/bsp_import.py` | Свой импортёр GoldSrc BSP v29/30 + WAD3-текстуры + lightmap (без аддонов) |
+| `blender/bsp_source_import.py` | Свой импортёр Source 1 BSP v17-v21 (CS:GO/CS:S): геометрия + displacement |
+| `core/tools/source1_tex.py` | Текстуры Source-карт: VMT→VTF→PNG (pak BSP + VPK игры) |
+| `core/tools/vtf_decode.py` | Python-декодер VTF (DXT1/3/5, RGBA-семейство) |
+| `core/tools/vpk.py` | VPK v2 reader (fallback; нативный ридер — pylib, MIT REDxEYE — предпочтителен) |
 | `blender/smd_import.py` | Импорт SMD-арматур и Actions игроков |
 | `make_replay.bat` | «Одна кнопка»: демка → Blender-сцена целиком |
 | `max/max_import.py`, `max/max_import.ms` | Импорт JSON в 3ds Max (pymxs) + обёртка MAXScript |
 | `audit/AUDIT.md` | Отчёт аудита инструментов (выбор/отклонения) |
-| `source1/` | Ветка Source 1: CS:GO/CSS демки (demoparser2 / demoinfogo) → общий JSON |
+| `source1/` | Ветка Source 1: CS:GO/CSS демки (demoinfogo / собственный Go-экстрактор) → общий JSON |
+| `source1/go_extract/` | `csgo_extract.exe` (Go + demoinfocs v3): игроки/камера/события CS:GO |
+| `csgosetup/` | Кино-набор CS:GO: movie.cfg + пресет HLAE `mirv_streams` (normal/depth-EXR/matte) |
+| `cssetup/` | Кино-набор CS:S: movie.cfg + экранная запись HLAE (`mirv_streams record screen`) |
 | `demos/` | Сюда класть `.dem` |
 
 ## 1. Сборка ядра (Windows)

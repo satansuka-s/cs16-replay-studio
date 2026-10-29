@@ -17,11 +17,34 @@ if not exist "%GAME%\hl.exe" if not exist "%GAME%\cstrike" (
     echo [error] game dir not found: %GAME%
     exit /b 1
 )
-if not exist "%DIST%" (
-    echo [error] staging\trinity_dist not found. Download Trinity Engine from trinityengine.ru ^
-          and unpack it here.
-    exit /b 1
+
+rem --- dist can be an unpacked folder, a .7z or a .zip archive ---
+if exist "%DIST%" goto :have_dist
+for %%A in ("%ROOT%\staging\trinity.7z" "%ROOT%\staging\trinity.zip" "%ROOT%\staging\trinity_dist.7z" "%ROOT%\staging\trinity_dist.zip") do (
+    if exist "%%~A" (
+        set ARCH=%%~A
+        goto :have_arch
+    )
 )
+echo [error] staging\trinity_dist not found. Download Trinity Engine:
+echo   GameBanana (CS 1.6 WIP):  https://gamebanana.com/wips/74956
+echo   TWHL (HL 3.10f):          https://twhl.info/vault/view/6664
+echo and unpack/put it into %ROOT%\staging\trinity_dist (or as trinity.7z/zip).
+exit /b 1
+
+:have_arch
+echo [info] extracting %ARCH% ...
+set "ARCH=%ARCH%"
+mkdir "%DIST%" 2>nul
+set SEVENZIP=C:\Program Files\7-Zip\7z.exe
+if exist "%SEVENZIP%" (
+    "%SEVENZIP%" x -o"%DIST%" -y "%ARCH%" >nul
+) else (
+    powershell -NoProfile -Command "Expand-Archive -LiteralPath '%ARCH%' -DestinationPath '%DIST%' -Force" >nul 2>&1
+)
+if not exist "%DIST%" (echo [error] extraction failed & exit /b 1)
+
+:have_dist
 
 echo == backup ==
 mkdir "%GAME%\trinity_backup" 2>nul

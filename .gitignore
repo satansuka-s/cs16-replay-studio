@@ -12,6 +12,13 @@ core/tests/*.blend
 core/tests/csgo_work/
 core/tests/sio_*.txt
 core/tests/sourceio.zip
+
+# downloaded engine clones / fake installs (re-downloadable, like core/extern/)
+core/tests/trinity_dl/
+core/tests/mh_fake/
+
+# machine-specific shortcuts
+*.lnk
 tests/*.json
 tests/*.blend
 demos/*.dem
